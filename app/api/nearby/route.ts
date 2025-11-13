@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     const deviceLatitude = request.headers.get('X-Device-Latitude');
     const deviceLongitude = request.headers.get('X-Device-Longitude');
 
-    const url = `https://dev.threedollars.co.kr/web/v1/stores/nearby?mapLatitude=${mapLatitude}&mapLongitude=${mapLongitude}&distanceM=${distanceM}&sortType=${sortType}`;
+    const url = `${process.env.NEXT_PUBLIC_API_BASE_URL}/v1/stores/nearby?mapLatitude=${mapLatitude}&mapLongitude=${mapLongitude}&distanceM=${distanceM}&sortType=${sortType}`;
     const headers: HeadersInit = {};
     
     if (deviceLatitude) {
