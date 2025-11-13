@@ -5,7 +5,7 @@ export const Config = {
   NAVER_MAP_CLIENT_SECRET: process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_SECRET || '',
   
   // API Endpoints
-  API_BASE_URL: 'https://dev.threedollars.co.kr/api/web',
+  API_BASE_URL: 'https://threedollars.co.kr/api/web',
   
   // Map settings
   DEFAULT_LOCATION: {
