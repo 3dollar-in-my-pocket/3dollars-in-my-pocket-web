@@ -67,7 +67,6 @@ npm run dev
 
 ## API 연동
 
-- **가게 정보 API**: `https://dev.threedollars.co.kr/api/v2/store/around`
 - **네이버 리버스 지오코딩**: 좌표를 주소로 변환
 
 ## 모바일 최적화 특징
