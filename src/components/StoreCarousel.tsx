@@ -39,7 +39,7 @@ export default function StoreCarousel({ stores, selectedStoreId, onStoreSelect }
       // Already selected - navigate to external URL
       const storeType = store.store.storeType;
       const storeId = store.store.storeId;
-      const url = `${Config.APP_DOMAIN}/store?storeType=${storeType}&storeId=${storeId}`;
+      const url = `${process.env.NEXT_PUBLIC_DYNAMIC_LINK_URL}/store?storeType=${storeType}&storeId=${storeId}`;
       window.open(url, '_blank');
     } else {
       // Not selected - just select the card
