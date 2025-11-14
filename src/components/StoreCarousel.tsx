@@ -4,6 +4,7 @@
 import { useRef, useEffect } from 'react';
 import { StoreSimpleWithExtraResponse } from '../models/Store';
 import StoreCard from './StoreCard';
+import { Config } from '../config/Environment';
 
 interface StoreCarouselProps {
   stores: StoreSimpleWithExtraResponse[];
@@ -38,7 +39,7 @@ export default function StoreCarousel({ stores, selectedStoreId, onStoreSelect }
       // Already selected - navigate to external URL
       const storeType = store.store.storeType;
       const storeId = store.store.storeId;
-      const url = `https://app.threedollars.co.kr/store?storeType=${storeType}&storeId=${storeId}`;
+      const url = `${Config.APP_DOMAIN}/store?storeType=${storeType}&storeId=${storeId}`;
       window.open(url, '_blank');
     } else {
       // Not selected - just select the card
