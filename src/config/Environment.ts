@@ -7,6 +7,11 @@ export const Config = {
   // API Endpoints
   API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL || '',
   
+  // App Domain
+  APP_DOMAIN: process.env.NODE_ENV === 'development' 
+    ? 'https://app.dev.threedollars.co.kr' 
+    : 'https://app.threedollars.co.kr',
+  
   // Map settings
   DEFAULT_LOCATION: {
     lat: 37.5665, // Seoul default

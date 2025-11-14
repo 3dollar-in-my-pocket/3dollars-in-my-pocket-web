@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import NaverMap from '../src/components/NaverMap';
 import StoreCarousel from '../src/components/StoreCarousel';
+import CurrentLocationButton from '../src/components/CurrentLocationButton';
+import SearchButton from '../src/components/SearchButton';
 import { StoreSimpleWithExtraResponse } from '../src/models/Store';
 import { MapMarker } from '../src/models/Marker';
 import { ApiService } from '../src/services/ApiService';
@@ -11,9 +13,11 @@ import { LocationService } from '../src/services/LocationService';
 export default function Home() {
   const [stores, setStores] = useState<StoreSimpleWithExtraResponse[]>([]);
   const [mapCenter, setMapCenter] = useState({ lat: 37.5665, lng: 126.9780 });
+  const [currentMapCenter, setCurrentMapCenter] = useState({ lat: 37.5665, lng: 126.9780 });
   const [currentAddress, setCurrentAddress] = useState('위치를 확인하는 중...');
   const [selectedStoreId, setSelectedStoreId] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
+  const [showSearchButton, setShowSearchButton] = useState(false);
 
   // Initialize location and fetch data
   useEffect(() => {
@@ -81,6 +85,58 @@ export default function Home() {
     setSelectedStoreId(markerId.toString());
   };
 
+  // Handle current location button click
+  const handleCurrentLocationClick = async () => {
+    try {
+      // Get current location
+      const location = await LocationService.getInstance().getCurrentLocation();
+      const newCenter = { lat: location.latitude, lng: location.longitude };
+      
+      setMapCenter(newCenter);
+      setCurrentMapCenter(newCenter); // Update current map center immediately
+      
+      // Show search button since map will move
+      setShowSearchButton(true);
+      
+    } catch (error) {
+      console.error('Error getting current location:', error);
+    }
+  };
+
+  // Handle map movement
+  const handleMapMove = () => {
+    setShowSearchButton(true);
+  };
+
+  // Handle map center change
+  const handleMapCenterChange = (center: { lat: number; lng: number }) => {
+    setCurrentMapCenter(center);
+  };
+
+  // Handle search button click
+  const handleSearchButtonClick = async () => {
+    try {
+      setLoading(true);
+      setShowSearchButton(false);
+      
+      // Fetch nearby stores for current map center
+      const nearbyStores = await ApiService.getInstance().fetchNearbyStores(
+        currentMapCenter.lat,
+        currentMapCenter.lng,
+        currentMapCenter.lat,
+        currentMapCenter.lng
+      );
+
+      setStores(nearbyStores);
+      setSelectedStoreId(undefined);
+      
+    } catch (error) {
+      console.error('Error searching stores:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="w-full h-screen relative bg-white" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       {/* Map Container - Full screen */}
@@ -90,6 +146,8 @@ export default function Home() {
           center={mapCenter}
           onMarkerClick={handleMarkerClick}
           selectedMarkerId={selectedStoreId}
+          onMapMove={handleMapMove}
+          onCenterChange={handleMapCenterChange}
         />
       </div>
         
@@ -110,6 +168,19 @@ export default function Home() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Search Button - Right below address container */}
+      <div className="absolute left-0 right-0 z-10 flex justify-center" style={{ top: 'calc(4rem + 12px)' }}>
+        <SearchButton 
+          isVisible={showSearchButton}
+          onClick={handleSearchButtonClick}
+        />
+      </div>
+
+      {/* Current Location Button - Fixed position above StoreCarousel */}
+      <div className="absolute z-30" style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px + 140px + 16px + 24px)', left: '20px' }}>
+        <CurrentLocationButton onClick={handleCurrentLocationClick} />
       </div>
 
       {/* Store Carousel at Bottom - Floating over map */}

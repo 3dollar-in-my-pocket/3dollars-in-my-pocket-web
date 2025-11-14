@@ -10,6 +10,8 @@ interface NaverMapProps {
   center: { lat: number; lng: number };
   onMarkerClick?: (markerId: string) => void;
   selectedMarkerId?: string;
+  onMapMove?: () => void;
+  onCenterChange?: (center: { lat: number; lng: number }) => void;
 }
 
 declare global {
@@ -29,7 +31,7 @@ declare global {
   }
 }
 
-export default function NaverMap({ markers, center, onMarkerClick, selectedMarkerId }: NaverMapProps) {
+export default function NaverMap({ markers, center, onMarkerClick, selectedMarkerId, onMapMove, onCenterChange }: NaverMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<unknown>(null);
   const naverMarkersRef = useRef<unknown[]>([]);
@@ -48,6 +50,26 @@ export default function NaverMap({ markers, center, onMarkerClick, selectedMarke
         scaleControl: false,
         tileDuration: 200,
       });
+
+      // Add map move event listener
+      if (onMapMove || onCenterChange) {
+        const handleMapMoveEnd = () => {
+          onMapMove?.();
+          
+          // Get current map center and call onCenterChange
+          if (onCenterChange) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const currentCenter = (mapInstance as any).getCenter();
+            onCenterChange({
+              lat: currentCenter.lat(),
+              lng: currentCenter.lng()
+            });
+          }
+        };
+        
+        window.naver.maps.Event.addListener(mapInstance, 'dragend', handleMapMoveEnd);
+        window.naver.maps.Event.addListener(mapInstance, 'zoom_changed', handleMapMoveEnd);
+      }
 
       setMap(mapInstance);
     };
@@ -126,9 +148,9 @@ export default function NaverMap({ markers, center, onMarkerClick, selectedMarke
   // Update map center when center prop changes
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (map && typeof (map as any).setCenter === 'function') {
+    if (map && typeof (map as any).panTo === 'function') {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (map as any).setCenter(new window.naver.maps.LatLng(center.lat, center.lng));
+      (map as any).panTo(new window.naver.maps.LatLng(center.lat, center.lng));
     }
   }, [map, center]);
 
