@@ -12,8 +12,8 @@ interface StoreCardProps {
 export default function StoreCard({ store, isSelected, onClick }: StoreCardProps) {
   return (
     <div
-      className="min-w-[280px] w-[280px] h-[140px] p-2 rounded-2xl cursor-pointer transition-all duration-200 text-white scale-105"
-      style={{ backgroundColor: '#0F0F0F' }}
+      className="min-w-[280px] w-[280px] h-[140px] p-2 rounded-2xl cursor-pointer transition-all duration-200 text-white"
+      style={{ backgroundColor: '#0F0F0F', marginRight: '12px' }}
       onClick={onClick}
     >
       <div className="flex flex-col h-full justify-between">
@@ -41,14 +41,15 @@ export default function StoreCard({ store, isSelected, onClick }: StoreCardProps
               </span>
               
               <h3 
-                className="text-lg font-bold"
+                className="text-lg font-bold truncate"
                 style={{
                   fontFamily: 'Pretendard',
                   fontWeight: 700,
                   fontSize: '16px',
                   lineHeight: '24px',
                   letterSpacing: '-0.01em',
-                  color: '#FFFFFF'
+                  color: '#FFFFFF',
+                  maxWidth: '200px'
                 }}
               >
                 {store.store.storeName}

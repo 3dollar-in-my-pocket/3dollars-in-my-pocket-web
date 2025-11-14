@@ -4,6 +4,7 @@
 import { useRef, useEffect } from 'react';
 import { StoreSimpleWithExtraResponse } from '../models/Store';
 import StoreCard from './StoreCard';
+import { Config } from '../config/Environment';
 
 interface StoreCarouselProps {
   stores: StoreSimpleWithExtraResponse[];
@@ -38,7 +39,7 @@ export default function StoreCarousel({ stores, selectedStoreId, onStoreSelect }
       // Already selected - navigate to external URL
       const storeType = store.store.storeType;
       const storeId = store.store.storeId;
-      const url = `https://app.threedollars.co.kr/store?storeType=${storeType}&storeId=${storeId}`;
+      const url = `${process.env.NEXT_PUBLIC_DYNAMIC_LINK_URL}/store?storeType=${storeType}&storeId=${storeId}`;
       window.open(url, '_blank');
     } else {
       // Not selected - just select the card
@@ -74,12 +75,10 @@ export default function StoreCarousel({ stores, selectedStoreId, onStoreSelect }
 
   return (
     <div className="w-full bg-transparent">
-      {/* 이 동네 가게 소식 header - removed as per requirements */}
-      
       {/* Horizontally scrollable cards */}
       <div
         ref={scrollRef}
-        className="flex gap-3 overflow-x-auto overflow-y-hidden scrollbar-hide px-4 py-4"
+        className="flex overflow-x-auto overflow-y-hidden scrollbar-hide px-4 py-4"
         style={{
           scrollbarWidth: 'none',
           msOverflowStyle: 'none',
