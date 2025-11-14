@@ -41,14 +41,15 @@ export default function StoreCard({ store, isSelected, onClick }: StoreCardProps
               </span>
               
               <h3 
-                className="text-lg font-bold"
+                className="text-lg font-bold truncate"
                 style={{
                   fontFamily: 'Pretendard',
                   fontWeight: 700,
                   fontSize: '16px',
                   lineHeight: '24px',
                   letterSpacing: '-0.01em',
-                  color: '#FFFFFF'
+                  color: '#FFFFFF',
+                  maxWidth: '200px'
                 }}
               >
                 {store.store.storeName}
