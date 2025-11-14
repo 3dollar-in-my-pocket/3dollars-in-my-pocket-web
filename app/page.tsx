@@ -138,7 +138,7 @@ export default function Home() {
   };
 
   return (
-    <div className="w-full h-screen relative bg-white" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+    <div className="w-full h-screen relative bg-white">
       {/* Map Container - Full screen */}
       <div className="absolute inset-0">
         <NaverMap
@@ -184,7 +184,7 @@ export default function Home() {
       </div>
 
       {/* Store Carousel at Bottom - Floating over map */}
-      <div className="absolute left-0 right-0 z-20" style={{ bottom: 'env(safe-area-inset-bottom, 0px)' }}>
+      <div className="absolute left-0 right-0 z-20" style={{ bottom: '36px' }}>
         <StoreCarousel
           stores={stores}
           selectedStoreId={selectedStoreId}
