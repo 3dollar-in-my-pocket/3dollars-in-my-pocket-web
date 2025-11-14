@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import NaverMap from '../src/components/NaverMap';
 import StoreCarousel from '../src/components/StoreCarousel';
+import CurrentLocationButton from '../src/components/CurrentLocationButton';
 import { StoreSimpleWithExtraResponse } from '../src/models/Store';
 import { MapMarker } from '../src/models/Marker';
 import { ApiService } from '../src/services/ApiService';
@@ -81,6 +82,18 @@ export default function Home() {
     setSelectedStoreId(markerId.toString());
   };
 
+  // Handle current location button click
+  const handleCurrentLocationClick = async () => {
+    try {
+      // Get current location
+      const location = await LocationService.getInstance().getCurrentLocation();
+      setMapCenter({ lat: location.latitude, lng: location.longitude });
+      
+    } catch (error) {
+      console.error('Error getting current location:', error);
+    }
+  };
+
   return (
     <div className="w-full h-screen relative bg-white" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       {/* Map Container - Full screen */}
@@ -110,6 +123,11 @@ export default function Home() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Current Location Button - Fixed position */}
+      <div className="absolute z-30" style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px + 140px + 16px)', left: '20px' }}>
+        <CurrentLocationButton onClick={handleCurrentLocationClick} />
       </div>
 
       {/* Store Carousel at Bottom - Floating over map */}

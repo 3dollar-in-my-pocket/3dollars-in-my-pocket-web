@@ -126,9 +126,9 @@ export default function NaverMap({ markers, center, onMarkerClick, selectedMarke
   // Update map center when center prop changes
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (map && typeof (map as any).setCenter === 'function') {
+    if (map && typeof (map as any).panTo === 'function') {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (map as any).setCenter(new window.naver.maps.LatLng(center.lat, center.lng));
+      (map as any).panTo(new window.naver.maps.LatLng(center.lat, center.lng));
     }
   }, [map, center]);
 

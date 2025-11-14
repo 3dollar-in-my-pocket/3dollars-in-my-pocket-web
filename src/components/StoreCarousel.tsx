@@ -74,12 +74,10 @@ export default function StoreCarousel({ stores, selectedStoreId, onStoreSelect }
 
   return (
     <div className="w-full bg-transparent">
-      {/* 이 동네 가게 소식 header - removed as per requirements */}
-      
       {/* Horizontally scrollable cards */}
       <div
         ref={scrollRef}
-        className="flex gap-3 overflow-x-auto overflow-y-hidden scrollbar-hide px-4 py-4"
+        className="flex overflow-x-auto overflow-y-hidden scrollbar-hide px-4 py-4"
         style={{
           scrollbarWidth: 'none',
           msOverflowStyle: 'none',
