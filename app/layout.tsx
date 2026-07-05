@@ -16,6 +16,12 @@ export const metadata: Metadata = {
   title: "가슴속 3천원 - 내 주변 길거리 음식",
   description: "내 주변의 길거리 음식점을 찾아보세요",
   viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no",
+  // iOS Safari Smart App Banner (TH-892)
+  // 앱 미설치 상태로 유니버설 링크 진입 시 상단 앱 미리보기 영역이 비어 보이는 문제 방지
+  // app-id: 가슴속 3천원 유저앱 App Store ID
+  itunes: {
+    appId: "1496099467",
+  },
 };
 
 export default function RootLayout({
