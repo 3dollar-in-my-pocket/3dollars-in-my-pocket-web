@@ -1,14 +1,30 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import NaverMap from '../src/components/NaverMap';
 import StoreCarousel from '../src/components/StoreCarousel';
 import CurrentLocationButton from '../src/components/CurrentLocationButton';
 import SearchButton from '../src/components/SearchButton';
+import HomeFilterBar from '../src/components/HomeFilterBar';
+import CategoryPickerModal from '../src/components/CategoryPickerModal';
 import { StoreSimpleWithExtraResponse } from '../src/models/Store';
 import { MapMarker } from '../src/models/Marker';
+import {
+  DEFAULT_HOME_FILTER,
+  HomeFilterSection,
+  HomeFilterState,
+  StoreCategory,
+} from '../src/models/HomeFilter';
 import { ApiService } from '../src/services/ApiService';
 import { LocationService } from '../src/services/LocationService';
+
+// SDUI 라디오 바 paramKey → 로컬 필터 상태 키 매핑.
+const RADIO_PARAM_KEYS: Record<string, keyof HomeFilterState> = {
+  sortType: 'sortType',
+  filterConditions: 'filterConditions',
+  filterOpenStatuses: 'filterOpenStatuses',
+  targetStores: 'targetStores',
+};
 
 export default function Home() {
   const [stores, setStores] = useState<StoreSimpleWithExtraResponse[]>([]);
@@ -19,38 +35,70 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [showSearchButton, setShowSearchButton] = useState(false);
 
-  // Initialize location and fetch data
+  // 필터 상태
+  const [filterSections, setFilterSections] = useState<HomeFilterSection[]>([]);
+  const [filter, setFilter] = useState<HomeFilterState>(DEFAULT_HOME_FILTER);
+  const [categories, setCategories] = useState<StoreCategory[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<StoreCategory | null>(null);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+
+  // 헤더용 실제 기기 위치 / 마지막 가게 검색 중심.
+  const deviceLocationRef = useRef({ lat: 37.5665, lng: 126.9780 });
+  const searchCenterRef = useRef({ lat: 37.5665, lng: 126.9780 });
+
+  // 필터 상태로 주변 가게를 다시 불러온다.
+  const loadStores = async (center: { lat: number; lng: number }, filterState: HomeFilterState) => {
+    try {
+      setLoading(true);
+      const device = deviceLocationRef.current;
+      const nearbyStores = await ApiService.getInstance().fetchNearbyStores(
+        device.lat,
+        device.lng,
+        center.lat,
+        center.lng,
+        filterState
+      );
+      setStores(nearbyStores);
+      setSelectedStoreId(undefined);
+      searchCenterRef.current = center;
+    } catch (error) {
+      console.error('Error loading stores:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 초기화: 위치 + 주소 + 필터 화면 + 카테고리 + 가게.
   useEffect(() => {
     const initializeApp = async () => {
       try {
         setLoading(true);
-        
-        // Get current location
+
+        // 필터 화면 / 카테고리는 위치와 독립적으로 병렬 로드.
+        ApiService.getInstance().fetchHomeFilter().then(setFilterSections);
+        ApiService.getInstance().fetchCategories().then(setCategories);
+
         const location = await LocationService.getInstance().getCurrentLocation();
-        setMapCenter({ lat: location.latitude, lng: location.longitude });
-        
-        // Get address for current location
+        const center = { lat: location.latitude, lng: location.longitude };
+        deviceLocationRef.current = center;
+        searchCenterRef.current = center;
+        setMapCenter(center);
+        setCurrentMapCenter(center);
+
         const address = await LocationService.getInstance().getAddressFromCoordinates(
-          location.latitude, 
+          location.latitude,
           location.longitude
         );
         setCurrentAddress(address);
-        
-        // Fetch nearby stores
-        const nearbyStores = await ApiService.getInstance().fetchNearbyStores(
-          location.latitude,
-          location.longitude,
-          location.latitude,
-          location.longitude
-        );
 
+        const nearbyStores = await ApiService.getInstance().fetchNearbyStores(
+          center.lat,
+          center.lng,
+          center.lat,
+          center.lng,
+          DEFAULT_HOME_FILTER
+        );
         setStores(nearbyStores);
-        
-        // Select first store if available
-        if (stores.length > 0) {
-          setSelectedStoreId(stores[0].store.storeId);
-        }
-        
       } catch (error) {
         console.error('Error initializing app:', error);
         setCurrentAddress('위치를 가져올 수 없습니다');
@@ -88,16 +136,13 @@ export default function Home() {
   // Handle current location button click
   const handleCurrentLocationClick = async () => {
     try {
-      // Get current location
       const location = await LocationService.getInstance().getCurrentLocation();
       const newCenter = { lat: location.latitude, lng: location.longitude };
-      
+      deviceLocationRef.current = newCenter;
+
       setMapCenter(newCenter);
-      setCurrentMapCenter(newCenter); // Update current map center immediately
-      
-      // Show search button since map will move
+      setCurrentMapCenter(newCenter);
       setShowSearchButton(true);
-      
     } catch (error) {
       console.error('Error getting current location:', error);
     }
@@ -113,28 +158,33 @@ export default function Home() {
     setCurrentMapCenter(center);
   };
 
-  // Handle search button click
+  // Handle search button click ("현재 지도에서 가게 재검색")
   const handleSearchButtonClick = async () => {
-    try {
-      setLoading(true);
-      setShowSearchButton(false);
-      
-      // Fetch nearby stores for current map center
-      const nearbyStores = await ApiService.getInstance().fetchNearbyStores(
-        currentMapCenter.lat,
-        currentMapCenter.lng,
-        currentMapCenter.lat,
-        currentMapCenter.lng
-      );
+    setShowSearchButton(false);
+    await loadStores(currentMapCenter, filter);
+  };
 
-      setStores(nearbyStores);
-      setSelectedStoreId(undefined);
-      
-    } catch (error) {
-      console.error('Error searching stores:', error);
-    } finally {
-      setLoading(false);
+  // 필터 변경 → 마지막 검색 중심에서 재조회.
+  const applyFilter = (patch: Partial<HomeFilterState>) => {
+    const next = { ...filter, ...patch };
+    setFilter(next);
+    loadStores(searchCenterRef.current, next);
+  };
+
+  const handleChangeRadio = (paramKey: string, paramValue: string | null) => {
+    const stateKey = RADIO_PARAM_KEYS[paramKey];
+    if (!stateKey) return;
+    if (stateKey === 'sortType') {
+      applyFilter({ sortType: paramValue ?? 'DISTANCE_ASC' });
+    } else {
+      applyFilter({ [stateKey]: paramValue } as Partial<HomeFilterState>);
     }
+  };
+
+  const handleSelectCategory = (category: StoreCategory | null) => {
+    setSelectedCategory(category);
+    setShowCategoryModal(false);
+    applyFilter({ categoryId: category?.categoryId ?? null });
   };
 
   return (
@@ -150,29 +200,44 @@ export default function Home() {
           onCenterChange={handleMapCenterChange}
         />
       </div>
-        
-      {/* Address Header - Floating on top of map */}
-      <div className="absolute top-0 left-0 right-0 z-10 px-5 pt-4">
-        <div className="bg-white px-4 py-3 shadow-sm" style={{borderRadius: '9px'}}>
-          <div className="flex items-center justify-between">
-            <span className="text-address text-gray-900">
-              {currentAddress}
-            </span>
-            <div>
-              <img 
-                src="/chevron_right.svg" 
-                alt="chevron right" 
-                width={16} 
-                height={16}
-              />
+
+      {/* Top chrome: Address + Filter bar */}
+      <div className="absolute top-0 left-0 right-0 z-10 pt-4 flex flex-col gap-2">
+        <div className="px-5">
+          <div className="bg-white px-4 py-3 shadow-sm" style={{ borderRadius: '9px' }}>
+            <div className="flex items-center justify-between">
+              <span className="text-address text-gray-900">
+                {currentAddress}
+              </span>
+              <div>
+                <img
+                  src="/chevron_right.svg"
+                  alt="chevron right"
+                  width={16}
+                  height={16}
+                />
+              </div>
             </div>
           </div>
         </div>
+
+        {filterSections.length > 0 && (
+          <div className="px-5">
+            <HomeFilterBar
+              sections={filterSections}
+              filter={filter}
+              selectedCategory={selectedCategory}
+              onChangeRadio={handleChangeRadio}
+              onOpenCategory={() => setShowCategoryModal(true)}
+              onClearCategory={() => handleSelectCategory(null)}
+            />
+          </div>
+        )}
       </div>
 
-      {/* Search Button - Right below address container */}
-      <div className="absolute left-0 right-0 z-10 flex justify-center" style={{ top: 'calc(4rem + 12px)' }}>
-        <SearchButton 
+      {/* Search Button - below filter bar */}
+      <div className="absolute left-0 right-0 z-10 flex justify-center" style={{ top: '116px' }}>
+        <SearchButton
           isVisible={showSearchButton}
           onClick={handleSearchButtonClick}
         />
@@ -191,10 +256,19 @@ export default function Home() {
           onStoreSelect={handleStoreSelect}
         />
       </div>
-      
+
+      {/* Category Picker Modal */}
+      <CategoryPickerModal
+        isOpen={showCategoryModal}
+        categories={categories}
+        selectedCategoryId={selectedCategory?.categoryId ?? null}
+        onSelect={handleSelectCategory}
+        onClose={() => setShowCategoryModal(false)}
+      />
+
       {/* Loading indicator */}
       {loading && (
-        <div className="absolute inset-0 bg-white bg-opacity-80 flex items-center justify-center z-30">
+        <div className="absolute inset-0 bg-white bg-opacity-80 flex items-center justify-center z-30 pointer-events-none">
           <div className="text-gray-600">주변 가게를 찾는 중...</div>
         </div>
       )}
