@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useRef } from 'react';
 import NaverMap from '../src/components/NaverMap';
-import StoreCarousel from '../src/components/StoreCarousel';
+import HomeBottomSheet from '../src/components/HomeBottomSheet';
+import StoreListItem from '../src/components/StoreListItem';
+import StorePreviewSheet from '../src/components/StorePreviewSheet';
 import CurrentLocationButton from '../src/components/CurrentLocationButton';
 import SearchButton from '../src/components/SearchButton';
 import HomeFilterBar from '../src/components/HomeFilterBar';
@@ -18,6 +20,9 @@ import {
 import { ApiService } from '../src/services/ApiService';
 import { LocationService } from '../src/services/LocationService';
 
+// 상단 주소/필터 영역 높이. 시트 펼침 시 흰 배경이 이 높이까지 덮어 시트와 이어진다.
+const TOP_CHROME_HEIGHT = 120;
+
 // SDUI 라디오 바 paramKey → 로컬 필터 상태 키 매핑.
 const RADIO_PARAM_KEYS: Record<string, keyof HomeFilterState> = {
   sortType: 'sortType',
@@ -31,7 +36,6 @@ export default function Home() {
   const [mapCenter, setMapCenter] = useState({ lat: 37.5665, lng: 126.9780 });
   const [currentMapCenter, setCurrentMapCenter] = useState({ lat: 37.5665, lng: 126.9780 });
   const [currentAddress, setCurrentAddress] = useState('위치를 확인하는 중...');
-  const [selectedStoreId, setSelectedStoreId] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
   const [showSearchButton, setShowSearchButton] = useState(false);
 
@@ -42,14 +46,28 @@ export default function Home() {
   const [selectedCategory, setSelectedCategory] = useState<StoreCategory | null>(null);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
 
+  // 바텀시트 (진행도 0=접힘 ~ 1=펼침)
+  const [sheetExpanded, setSheetExpanded] = useState(false);
+  const [sheetProgress, setSheetProgress] = useState(0);
+
+  // 마커 탭 시 뜨는 가게 프리뷰
+  const [previewStore, setPreviewStore] = useState<StoreSimpleWithExtraResponse | null>(null);
+
   // 헤더용 실제 기기 위치 / 마지막 가게 검색 중심.
   const deviceLocationRef = useRef({ lat: 37.5665, lng: 126.9780 });
   const searchCenterRef = useRef({ lat: 37.5665, lng: 126.9780 });
+
+  // 앱으로 이동 (딥링크).
+  const openApp = (store: StoreSimpleWithExtraResponse) => {
+    const url = `${process.env.NEXT_PUBLIC_DYNAMIC_LINK_URL}/store?storeType=${store.store.storeType}&storeId=${store.store.storeId}`;
+    window.open(url, '_blank');
+  };
 
   // 필터 상태로 주변 가게를 다시 불러온다.
   const loadStores = async (center: { lat: number; lng: number }, filterState: HomeFilterState) => {
     try {
       setLoading(true);
+      setPreviewStore(null);
       const device = deviceLocationRef.current;
       const nearbyStores = await ApiService.getInstance().fetchNearbyStores(
         device.lat,
@@ -59,7 +77,6 @@ export default function Home() {
         filterState
       );
       setStores(nearbyStores);
-      setSelectedStoreId(undefined);
       searchCenterRef.current = center;
     } catch (error) {
       console.error('Error loading stores:', error);
@@ -115,22 +132,19 @@ export default function Home() {
     storeId: store.store.storeId,
     position: { lat: store.store.location?.latitude || 0, lng: store.store.location?.longitude || 0 },
     title: store.store.storeName,
-    isSelected: store.store.storeId === selectedStoreId,
+    isSelected: store.store.storeId === previewStore?.store.storeId,
     marker: store.marker
   }));
 
-  // Handle store selection from carousel
-  const handleStoreSelect = (storeId: string) => {
-    setSelectedStoreId(storeId);
-    const selectedStore = stores.find(store => store.store.storeId === storeId);
-    if (selectedStore) {
-      setMapCenter({ lat: selectedStore.store.location?.latitude || 0, lng: selectedStore.store.location?.longitude || 0 });
-    }
-  };
-
-  // Handle marker click from map
+  // 마커 탭 → 가게 프리뷰 시트 + 지도 중심 이동.
   const handleMarkerClick = (markerId: string) => {
-    setSelectedStoreId(markerId.toString());
+    const store = stores.find((s) => s.store.storeId === markerId);
+    if (!store) return;
+    setPreviewStore(store);
+    setMapCenter({
+      lat: store.store.location?.latitude || mapCenter.lat,
+      lng: store.store.location?.longitude || mapCenter.lng,
+    });
   };
 
   // Handle current location button click
@@ -195,14 +209,27 @@ export default function Home() {
           markers={mapMarkers}
           center={mapCenter}
           onMarkerClick={handleMarkerClick}
-          selectedMarkerId={selectedStoreId}
+          selectedMarkerId={previewStore?.store.storeId}
           onMapMove={handleMapMove}
           onCenterChange={handleMapCenterChange}
         />
       </div>
 
-      {/* Top chrome: Address + Filter bar */}
-      <div className="absolute top-0 left-0 right-0 z-10 pt-4 flex flex-col gap-2">
+      {/* 시트 펼침 시 상단 영역을 덮는 흰 배경. 시트(z-30)보다 위(z-40)에 있어 시트 상단이 배경 뒤로 들어가
+          이음새 없이 전체화면 흰색처럼 보인다. 높이는 상단 크롬보다 10px 더 길어 시트 상단 라운드를 덮는다. */}
+      <div
+        className="absolute top-0 left-0 right-0 z-40"
+        style={{
+          height: `${TOP_CHROME_HEIGHT + 10}px`,
+          backgroundColor: '#FFFFFF',
+          opacity: sheetProgress,
+          transition: 'opacity 0.3s cubic-bezier(0.22, 1, 0.36, 1)',
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* Top chrome: Address + Filter bar. 흰 배경(z-40) 위에 올려 항상 보이도록 z-[45]. */}
+      <div className="absolute top-0 left-0 right-0 z-[45] pt-4 flex flex-col gap-2">
         <div className="px-5">
           <div className="bg-white px-4 py-3 shadow-sm" style={{ borderRadius: '9px' }}>
             <div className="flex items-center justify-between">
@@ -222,40 +249,63 @@ export default function Home() {
         </div>
 
         {filterSections.length > 0 && (
-          <div className="px-5">
-            <HomeFilterBar
-              sections={filterSections}
-              filter={filter}
-              selectedCategory={selectedCategory}
-              onChangeRadio={handleChangeRadio}
-              onOpenCategory={() => setShowCategoryModal(true)}
-              onClearCategory={() => handleSelectCategory(null)}
-            />
-          </div>
+          <HomeFilterBar
+            sections={filterSections}
+            filter={filter}
+            selectedCategory={selectedCategory}
+            onChangeRadio={handleChangeRadio}
+            onOpenCategory={() => setShowCategoryModal(true)}
+            onClearCategory={() => handleSelectCategory(null)}
+          />
         )}
       </div>
 
       {/* Search Button - below filter bar */}
-      <div className="absolute left-0 right-0 z-10 flex justify-center" style={{ top: '116px' }}>
+      <div className="absolute left-0 right-0 z-[45] flex justify-center" style={{ top: '116px' }}>
         <SearchButton
           isVisible={showSearchButton}
           onClick={handleSearchButtonClick}
         />
       </div>
 
-      {/* Current Location Button - Fixed position above StoreCarousel */}
-      <div className="absolute z-30" style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px + 140px + 16px + 24px)', left: '20px' }}>
+      {/* Current Location Button - above collapsed bottom sheet */}
+      <div className="absolute z-20" style={{ bottom: 'calc(210px + 16px)', left: '20px' }}>
         <CurrentLocationButton onClick={handleCurrentLocationClick} />
       </div>
 
-      {/* Store Carousel at Bottom - Floating over map */}
-      <div className="absolute left-0 right-0 z-20" style={{ bottom: '36px' }}>
-        <StoreCarousel
-          stores={stores}
-          selectedStoreId={selectedStoreId}
-          onStoreSelect={handleStoreSelect}
-        />
-      </div>
+      {/* Bottom Sheet with vertical store list (앱 FloatingPanel 대응) */}
+      <HomeBottomSheet
+        expanded={sheetExpanded}
+        onExpandedChange={setSheetExpanded}
+        onProgressChange={setSheetProgress}
+        collapsedHeight={210}
+        expandedTopOffset={TOP_CHROME_HEIGHT}
+      >
+        {stores.length === 0 ? (
+          <div
+            className="flex flex-col items-center justify-center text-center"
+            style={{ paddingTop: '48px', paddingBottom: '48px' }}
+          >
+            <div style={{ fontFamily: 'Pretendard', fontWeight: 700, fontSize: '16px', color: '#4B4B4B' }}>
+              주변에 등록된 가게가 없어요
+            </div>
+            <div style={{ fontFamily: 'Pretendard', fontWeight: 500, fontSize: '13px', color: '#8E8E8E', marginTop: '8px' }}>
+              지도를 움직여 다른 위치를 살펴보세요
+            </div>
+          </div>
+        ) : (
+          <div style={{ paddingBottom: '24px' }}>
+            {stores.map((store) => (
+              <StoreListItem
+                key={store.store.storeId}
+                store={store}
+                deviceLocation={deviceLocationRef.current}
+                onClick={() => openApp(store)}
+              />
+            ))}
+          </div>
+        )}
+      </HomeBottomSheet>
 
       {/* Category Picker Modal */}
       <CategoryPickerModal
@@ -264,6 +314,14 @@ export default function Home() {
         selectedCategoryId={selectedCategory?.categoryId ?? null}
         onSelect={handleSelectCategory}
         onClose={() => setShowCategoryModal(false)}
+      />
+
+      {/* Store Preview Sheet (마커 탭) */}
+      <StorePreviewSheet
+        store={previewStore}
+        deviceLocation={deviceLocationRef.current}
+        onClose={() => setPreviewStore(null)}
+        onOpenApp={openApp}
       />
 
       {/* Loading indicator */}

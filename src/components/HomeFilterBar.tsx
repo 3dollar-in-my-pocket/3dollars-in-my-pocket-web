@@ -101,7 +101,8 @@ export default function HomeFilterBar({
   return (
     <div
       className="flex items-center gap-2 overflow-x-auto scrollbar-hide"
-      style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+      // 좌우 패딩 없이 화면 끝까지 스크롤되되, 내부 패딩으로 첫 칩 시작 위치는 유지.
+      style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', paddingLeft: '20px', paddingRight: '20px' }}
     >
       {bars.map((bar, index) => {
         if (bar.type === 'CATEGORY_BAR') {

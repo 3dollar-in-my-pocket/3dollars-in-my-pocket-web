@@ -1,5 +1,6 @@
 import { StoreSimpleWithExtraResponse } from '../models/Store';
 import { HomeFilterSection, HomeFilterState, StoreCategory } from '../models/HomeFilter';
+import { StorePreviewSection } from '../models/StorePreview';
 
 export class ApiService {
   private static instance: ApiService;
@@ -64,6 +65,31 @@ export class ApiService {
     } catch (error) {
       console.error('Error fetching home filter:', error);
       return [];
+    }
+  }
+
+  // SDUI 가게 프리뷰 (마커 탭 상세 시트).
+  async fetchStorePreview(
+    storeId: string,
+    latitude: number,
+    longitude: number
+  ): Promise<StorePreviewSection | null> {
+    try {
+      const response = await fetch(`/api/store-preview/${storeId}`, {
+        headers: {
+          'X-Device-Latitude': latitude.toString(),
+          'X-Device-Longitude': longitude.toString(),
+        },
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      const sections = data.data?.sections || [];
+      return sections.find((s: StorePreviewSection) => s.type === 'PREVIEW') || null;
+    } catch (error) {
+      console.error('Error fetching store preview:', error);
+      return null;
     }
   }
 
