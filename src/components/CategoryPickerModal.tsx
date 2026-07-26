@@ -111,17 +111,42 @@ export default function CategoryPickerModal({
                       onClick={() => onSelect(isSelected ? null : category)}
                       className="flex flex-col items-center gap-1.5"
                     >
-                      <img
-                        src={category.imageUrl}
-                        alt={category.name}
-                        style={{
-                          width: 56,
-                          height: 56,
-                          objectFit: 'contain',
-                          borderRadius: '14px',
-                          border: isSelected ? '1.5px solid #FF5C43' : '1.5px solid transparent',
-                        }}
-                      />
+                      {/* 아이콘 영역: 선택 시 원형 border + 옅은 배경, NEW 뱃지(좌측 상단) */}
+                      <div className="relative flex items-center justify-center" style={{ width: 58, height: 58 }}>
+                        {isSelected && (
+                          <div
+                            className="absolute inset-0"
+                            style={{ borderRadius: '50%', backgroundColor: '#FFF3F4', border: '1px solid #FF858F' }}
+                          />
+                        )}
+                        <img
+                          src={category.imageUrl}
+                          alt={category.name}
+                          className="relative"
+                          style={{ width: 56, height: 56, objectFit: 'contain', zIndex: 1 }}
+                        />
+                        {category.isNew && (
+                          <span
+                            className="absolute"
+                            style={{
+                              top: 0,
+                              left: 0,
+                              zIndex: 2,
+                              height: '15px',
+                              padding: '0 5px',
+                              borderRadius: '7px',
+                              backgroundColor: '#FF5C43',
+                              color: '#FFFFFF',
+                              fontFamily: 'Pretendard',
+                              fontWeight: 700,
+                              fontSize: '9px',
+                              lineHeight: '15px',
+                            }}
+                          >
+                            NEW
+                          </span>
+                        )}
+                      </div>
                       <span
                         className="text-center"
                         style={{
@@ -130,7 +155,7 @@ export default function CategoryPickerModal({
                           fontSize: '12px',
                           lineHeight: '16px',
                           letterSpacing: '-0.01em',
-                          color: isSelected ? '#FF5C43' : '#5A5A5A',
+                          color: '#5A5A5A',
                           display: '-webkit-box',
                           WebkitLineClamp: 2,
                           WebkitBoxOrient: 'vertical',
