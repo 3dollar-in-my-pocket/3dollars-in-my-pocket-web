@@ -103,7 +103,6 @@ export default function StoreListItem({ store, deviceLocation, onClick }: StoreL
         <div className="flex items-center gap-1 shrink-0">
           {tags.isNew && <Badge label="NEW" color="#FFFFFF" background="#FF5C43" />}
           {tags.hasIssuableCoupon && <Badge label="쿠폰" color="#FFFFFF" background="#FF9500" />}
-          {isBoss && <Badge label="사장님" color="#12923C" background="#E6F7EC" />}
         </div>
       </div>
 
@@ -118,14 +117,16 @@ export default function StoreListItem({ store, deviceLocation, onClick }: StoreL
         </span>
       </div>
 
-      {/* 2차 메타: 영업상태 · 거리 · 최근 방문 */}
+      {/* 2차 메타: 영업상태 · 거리 · (사장님 직영점 | 최근 방문 N명) — 서버 텍스트와 동일하게 구성 */}
       <div className="flex items-center" style={{ gap: '6px', marginTop: '4px' }}>
         {openStatus === 'OPEN' && <span style={metaStyle('#232323')}>영업 중</span>}
         {openStatus === 'CLOSED' && <span style={metaStyle('#B7B7B7')}>영업 종료</span>}
         {openStatus !== 'UNKNOWN' && <Dot />}
         <span style={metaStyle('#787878')}>{distanceText}</span>
         <Dot />
-        <span style={metaStyle('#787878')}>최근 방문 {visitCounts.existsCounts}명</span>
+        <span style={metaStyle('#787878')}>
+          {isBoss ? '사장님 직영점' : `최근 방문 ${visitCounts.existsCounts}명`}
+        </span>
       </div>
 
       {/* 이미지 (있으면): 3-up */}
