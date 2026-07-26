@@ -2,7 +2,7 @@ export interface StoreSimpleWithExtraResponse {
   store: StoreSimpleResponse;
   marker?: StoreMarkerResponse;
   openStatus: {
-    status: "OPEN" | "CLOSED";
+    status: "OPEN" | "CLOSED" | "UNKNOWN";
     openStartDateTime?: string;
     isOpening: boolean;
   };
@@ -74,5 +74,6 @@ export interface StoreExtraResponse {
   tags: {
     isNew: boolean;
     hasIssuableCoupon: boolean;
+    isVerifiedStore?: boolean;
   }
 }
