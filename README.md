@@ -46,7 +46,16 @@ NEXT_PUBLIC_NAVER_MAP_CLIENT_ID=your_client_id_here
 NEXT_PUBLIC_NAVER_MAP_CLIENT_SECRET=your_client_secret_here
 ```
 
-### 2. 의존성 설치 및 실행
+### 2. Google Analytics 4 설정 (선택)
+
+GA4 속성에서 웹 데이터 스트림을 만든 뒤, 배포 환경 변수에 측정 ID를 추가합니다.
+개발 환경에서는 트래픽이 수집되지 않습니다.
+
+```env
+NEXT_PUBLIC_GA_MEASUREMENT_ID=G-XXXXXXXXXX
+```
+
+### 3. 의존성 설치 및 실행
 
 ```bash
 # 의존성 설치

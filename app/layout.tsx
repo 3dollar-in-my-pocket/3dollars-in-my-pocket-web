@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import GoogleAnalytics from "../src/components/GoogleAnalytics";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -29,6 +30,10 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
+  const enableGoogleAnalytics =
+    process.env.NODE_ENV === "production" && Boolean(gaMeasurementId);
+
   return (
     <html lang="ko">
       <head>
@@ -49,6 +54,9 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {children}
+        {enableGoogleAnalytics && gaMeasurementId && (
+          <GoogleAnalytics measurementId={gaMeasurementId} />
+        )}
       </body>
     </html>
   );
