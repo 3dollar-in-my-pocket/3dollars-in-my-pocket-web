@@ -30,6 +30,7 @@ export interface SDText {
 export interface SDChip {
   image?: SDImage | null;
   text?: SDText | null;
+  additionalText?: SDText | null;
   style?: SDSurfaceStyle | null;
 }
 
@@ -60,7 +61,7 @@ export interface HomeFilterSection {
   bars: HomeFilterBar[];
 }
 
-// Selected filter state — maps directly to /stores/nearby query params.
+// Selected filter state — maps directly to the home list query params.
 export interface HomeFilterState {
   sortType: string; // "DISTANCE_ASC" | "LATEST"
   filterConditions: string | null; // "RECENT_ACTIVITY" | null

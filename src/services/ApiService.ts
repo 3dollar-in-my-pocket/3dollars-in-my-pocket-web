@@ -1,6 +1,9 @@
-import { StoreSimpleWithExtraResponse } from '../models/Store';
+import { HomeListBasicCard, HomeListSection } from '../models/HomeList';
 import { HomeFilterSection, HomeFilterState, StoreCategory } from '../models/HomeFilter';
-import { StorePreviewSection } from '../models/StorePreview';
+import {
+  DEFAULT_HOME_DISTANCE_M,
+  MAX_HOME_DISTANCE_M,
+} from '../constants/HomeMap';
 
 export class ApiService {
   private static instance: ApiService;
@@ -12,20 +15,24 @@ export class ApiService {
     return ApiService.instance;
   }
 
-  // 주변 가게 조회. 필터 상태를 nearby 쿼리 파라미터로 흘려보낸다.
-  async fetchNearbyStores(
+  // SDUI 홈 리스트. 한 응답으로 리스트 카드와 지도 마커를 함께 구성한다.
+  async fetchHomeList(
     latitude: number,
     longitude: number,
     mapLatitude: number,
     mapLongitude: number,
     filter?: Partial<HomeFilterState>,
-    distance: number = 1000
-  ): Promise<StoreSimpleWithExtraResponse[]> {
+    distance: number = 1000,
+    cursor?: string
+  ): Promise<HomeListSection> {
     try {
+      const normalizedDistance = Number.isFinite(distance) && distance > 0
+        ? Math.min(Math.round(distance), MAX_HOME_DISTANCE_M)
+        : DEFAULT_HOME_DISTANCE_M;
       const params = new URLSearchParams({
         mapLatitude: mapLatitude.toString(),
         mapLongitude: mapLongitude.toString(),
-        distanceM: distance.toString(),
+        distanceM: normalizedDistance.toString(),
         sortType: filter?.sortType || 'DISTANCE_ASC',
       });
 
@@ -33,8 +40,9 @@ export class ApiService {
       if (filter?.filterOpenStatuses) params.set('filterOpenStatuses', filter.filterOpenStatuses);
       if (filter?.targetStores) params.set('targetStores', filter.targetStores);
       if (filter?.categoryId) params.set('categoryIds', filter.categoryId);
+      if (cursor) params.set('cursor', cursor);
 
-      const response = await fetch(`/api/nearby?${params.toString()}`, {
+      const response = await fetch(`/api/home-list?${params.toString()}`, {
         headers: {
           'X-Device-Latitude': latitude.toString(),
           'X-Device-Longitude': longitude.toString(),
@@ -46,9 +54,15 @@ export class ApiService {
       }
 
       const data = await response.json();
-      return data.data.contents || [];
+      const section = data.data as HomeListSection | undefined;
+      return {
+        cards: (section?.cards || []).filter(
+          (card): card is HomeListBasicCard => card.type === 'BASIC_CARD'
+        ),
+        cursor: section?.cursor || { hasMore: false, nextCursor: null },
+      };
     } catch (error) {
-      console.error('Error fetching nearby stores:', error);
+      console.error('Error fetching home list:', error);
       throw error;
     }
   }
@@ -65,31 +79,6 @@ export class ApiService {
     } catch (error) {
       console.error('Error fetching home filter:', error);
       return [];
-    }
-  }
-
-  // SDUI 가게 프리뷰 (마커 탭 상세 시트).
-  async fetchStorePreview(
-    storeId: string,
-    latitude: number,
-    longitude: number
-  ): Promise<StorePreviewSection | null> {
-    try {
-      const response = await fetch(`/api/store-preview/${storeId}`, {
-        headers: {
-          'X-Device-Latitude': latitude.toString(),
-          'X-Device-Longitude': longitude.toString(),
-        },
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-      const sections = data.data?.sections || [];
-      return sections.find((s: StorePreviewSection) => s.type === 'PREVIEW') || null;
-    } catch (error) {
-      console.error('Error fetching store preview:', error);
-      return null;
     }
   }
 

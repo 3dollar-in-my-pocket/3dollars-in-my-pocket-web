@@ -11,6 +11,7 @@ import {
   SDChip,
   StoreCategory,
 } from '../models/HomeFilter';
+import { SDTextContent } from './SDTextContent';
 
 interface HomeFilterBarProps {
   sections: HomeFilterSection[];
@@ -19,11 +20,6 @@ interface HomeFilterBarProps {
   onChangeRadio: (paramKey: string, paramValue: string | null) => void;
   onOpenCategory: () => void;
   onClearCategory: () => void;
-}
-
-// SDUI 칩 텍스트는 HTML(<span>...) 로 오므로 순수 텍스트만 추출한다.
-function stripHtml(html: string): string {
-  return html.replace(/<[^>]+>/g, '').trim();
 }
 
 // 현재 필터 상태에서 해당 라디오 바의 선택된 값.
@@ -46,7 +42,15 @@ function normalize(value: string | null | undefined): string | null {
   return value ?? null;
 }
 
-function ChipView({ chip, label, onClick }: { chip: SDChip; label: string; onClick: () => void }) {
+function ChipView({
+  chip,
+  fallbackText,
+  onClick,
+}: {
+  chip: SDChip;
+  fallbackText?: string;
+  onClick: () => void;
+}) {
   const textColor = chip.text?.fontColor || '#5A5A5A';
   const backgroundColor = chip.style?.backgroundColor || '#FFFFFF';
   const borderColor = chip.style?.border?.color || '#E2E2E2';
@@ -79,7 +83,7 @@ function ChipView({ chip, label, onClick }: { chip: SDChip; label: string; onCli
           }}
         />
       )}
-      {label}
+      {chip.text ? <SDTextContent value={chip.text} /> : fallbackText}
     </button>
   );
 }
@@ -107,13 +111,13 @@ export default function HomeFilterBar({
       {bars.map((bar, index) => {
         if (bar.type === 'CATEGORY_BAR') {
           const categoryBar = bar as { categoriesFilter: SDChip };
-          const label = categoryBar.categoriesFilter.text
-            ? stripHtml(categoryBar.categoriesFilter.text.text)
-            : '음식 종류';
-
           return (
             <div key={`category-${index}`} className="flex items-center gap-2 shrink-0">
-              <ChipView chip={categoryBar.categoriesFilter} label={label} onClick={onOpenCategory} />
+              <ChipView
+                chip={categoryBar.categoriesFilter}
+                fallbackText="음식 종류"
+                onClick={onOpenCategory}
+              />
               {selectedCategory && (
                 <button
                   onClick={onClearCategory}
@@ -155,13 +159,10 @@ export default function HomeFilterBar({
           const currentOption = options[selectedIndex];
           const nextIndex = (selectedIndex + 1) % options.length;
           const nextValue = normalize(options[nextIndex].paramValue);
-          const label = currentOption.chip.text ? stripHtml(currentOption.chip.text.text) : '';
-
           return (
             <ChipView
               key={`${radioBar.paramKey}-${index}`}
               chip={currentOption.chip}
-              label={label}
               onClick={() => onChangeRadio(radioBar.paramKey, nextValue)}
             />
           );

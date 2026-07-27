@@ -1,9 +1,23 @@
 // Location Service - similar to iOS CoreLocation
-import { Config } from '../config/Environment';
 
 export interface LocationCoordinate {
   latitude: number;
   longitude: number;
+}
+
+export type LocationErrorReason =
+  | 'UNSUPPORTED'
+  | 'INSECURE_CONTEXT'
+  | 'PERMISSION_DENIED'
+  | 'POSITION_UNAVAILABLE'
+  | 'TIMEOUT'
+  | 'UNKNOWN';
+
+export class LocationError extends Error {
+  constructor(public readonly reason: LocationErrorReason, message: string) {
+    super(message);
+    this.name = 'LocationError';
+  }
 }
 
 export class LocationService {
@@ -15,26 +29,37 @@ export class LocationService {
     }
     return LocationService.instance;
   }
+
+  async getPermissionState(): Promise<PermissionState | 'unsupported'> {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      return 'unsupported';
+    }
+
+    if (!navigator.permissions?.query) {
+      return 'prompt';
+    }
+
+    try {
+      const status = await navigator.permissions.query({ name: 'geolocation' });
+      return status.state;
+    } catch {
+      // Safari 등 Permissions API 지원이 제한적인 브라우저에서는
+      // 사용자 클릭 뒤 geolocation API가 권한 창을 직접 띄우도록 한다.
+      return 'prompt';
+    }
+  }
   
   // Get current user location
   async getCurrentLocation(): Promise<LocationCoordinate> {
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) {
-        console.error('Geolocation is not supported');
-        resolve({
-          latitude: Config.DEFAULT_LOCATION.lat,
-          longitude: Config.DEFAULT_LOCATION.lng,
-        });
+        reject(new LocationError('UNSUPPORTED', '이 브라우저는 위치 정보를 지원하지 않습니다.'));
         return;
       }
 
       // Check if we're on HTTPS (required for location on mobile)
       if (typeof window !== 'undefined' && window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
-        console.warn('Geolocation requires HTTPS in production');
-        resolve({
-          latitude: Config.DEFAULT_LOCATION.lat,
-          longitude: Config.DEFAULT_LOCATION.lng,
-        });
+        reject(new LocationError('INSECURE_CONTEXT', '위치 정보는 HTTPS 환경에서만 사용할 수 있습니다.'));
         return;
       }
       
@@ -48,28 +73,20 @@ export class LocationService {
         },
         (error) => {
           console.error('Error getting location:', error);
-          console.error('Error code:', error.code);
-          console.error('Error message:', error.message);
-          
-          let errorMessage = 'Unknown location error';
-          switch(error.code) {
+
+          switch (error.code) {
             case error.PERMISSION_DENIED:
-              errorMessage = 'Location permission denied by user';
-              break;
+              reject(new LocationError('PERMISSION_DENIED', '위치 권한이 거부되었습니다.'));
+              return;
             case error.POSITION_UNAVAILABLE:
-              errorMessage = 'Location information unavailable';
-              break;
+              reject(new LocationError('POSITION_UNAVAILABLE', '현재 위치를 확인할 수 없습니다.'));
+              return;
             case error.TIMEOUT:
-              errorMessage = 'Location request timeout';
-              break;
+              reject(new LocationError('TIMEOUT', '현재 위치 확인 시간이 초과되었습니다.'));
+              return;
+            default:
+              reject(new LocationError('UNKNOWN', error.message || '현재 위치를 가져오지 못했습니다.'));
           }
-          console.log('Location error details:', errorMessage);
-          
-          // Fallback to Seoul default location
-          resolve({
-            latitude: Config.DEFAULT_LOCATION.lat,
-            longitude: Config.DEFAULT_LOCATION.lng,
-          });
         },
         {
           enableHighAccuracy: true,

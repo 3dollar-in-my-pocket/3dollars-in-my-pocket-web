@@ -1,0 +1,2 @@
+export const DEFAULT_HOME_DISTANCE_M = 1_000;
+export const MAX_HOME_DISTANCE_M = 15_000;

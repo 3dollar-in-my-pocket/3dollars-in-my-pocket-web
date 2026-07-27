@@ -1,14 +1,10 @@
 import { NextResponse } from 'next/server';
+import { createApiUrl } from '@/src/server/upstream';
 
-// 음식 카테고리 목록 프록시 (카테고리 필터용).
-// 앱과 동일: GET /api/v4/store/categories
+// 음식 카테고리 목록 (카테고리 필터용).
 export async function GET() {
   try {
-    const base = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://threedollars.co.kr';
-    const origin = new URL(base).origin;
-    const url = `${origin}/api/v4/store/categories`;
-
-    const response = await fetch(url, {
+    const response = await fetch(createApiUrl('/api/v4/store/categories'), {
       headers: { 'Content-Type': 'application/json' },
       next: { revalidate: 3600 },
     });

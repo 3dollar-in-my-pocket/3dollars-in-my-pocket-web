@@ -2,7 +2,7 @@
 
 // Category Picker — 앱의 CategoryFilterViewController 대응. 카테고리 선택 바텀시트.
 // classification 으로 섹션 그룹핑, 4열 그리드, 이름 최대 2줄. "전체" 항목 없음(재선택 시 해제=전체).
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { StoreCategory } from '../models/HomeFilter';
 
 interface CategoryPickerModalProps {
@@ -29,6 +29,65 @@ export default function CategoryPickerModal({
   onSelect,
   onClose,
 }: CategoryPickerModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const getFocusableElements = () => Array.from(
+      dialogRef.current?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      ) ?? []
+    );
+
+    const focusableElements = getFocusableElements();
+    (focusableElements[0] ?? dialogRef.current)?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+
+      if (event.key !== 'Tab') return;
+      const elements = getFocusableElements();
+      if (elements.length === 0) {
+        event.preventDefault();
+        dialogRef.current?.focus();
+        return;
+      }
+
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = previousBodyOverflow;
+      previouslyFocused?.focus();
+    };
+  }, [isOpen]);
+
   // classification 으로 그룹핑 후 priority 오름차순 정렬. 섹션 제목 = classification.description.
   const sections = useMemo<CategorySection[]>(() => {
     const groups = new Map<string, CategorySection>();
@@ -46,12 +105,17 @@ export default function CategoryPickerModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center">
+    <div className="fixed inset-0 z-[60] flex items-end justify-center">
       {/* Dimmed backdrop */}
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden="true" />
 
       {/* Bottom sheet */}
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="category-filter-title"
+        tabIndex={-1}
         className="relative w-full max-w-[520px] bg-white flex flex-col"
         style={{
           borderTopLeftRadius: '20px',
@@ -63,6 +127,7 @@ export default function CategoryPickerModal({
         {/* 헤더 (타이틀) */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0">
           <span
+            id="category-filter-title"
             style={{
               fontFamily: 'Pretendard',
               fontWeight: 700,

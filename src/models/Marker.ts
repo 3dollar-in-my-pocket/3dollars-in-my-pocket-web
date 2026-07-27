@@ -1,12 +1,12 @@
-import { StoreMarkerResponse } from './Store';
+import { HomeListMarker } from './HomeList';
 
 export interface MapMarker {
-    storeId: string;
+    markerId: string;
     position: {
       lat: number;
       lng: number;
     };
     title: string;
     isSelected: boolean;
-    marker?: StoreMarkerResponse;
+    marker: HomeListMarker;
   }

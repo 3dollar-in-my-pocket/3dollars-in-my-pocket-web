@@ -15,5 +15,5 @@ export const Config = {
   
   // UI settings
   CARD_SCROLL_THRESHOLD: 50,
-  MAP_ZOOM_LEVEL: 17
+  MAP_ZOOM_LEVEL: 15
 };

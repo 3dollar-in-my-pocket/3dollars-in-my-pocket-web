@@ -1,94 +1,66 @@
 'use client';
 
-// Store List Item — 앱 홈 리스트(HomeListStoreCell) / Figma ver4.0.0 가이드 대응.
-// 텍스트 헤더 + 메타 2줄(항상) + 이미지 행(있으면) + 리뷰 박스(있으면). 4가지 케이스 레이아웃.
-// 헤더/메타는 nearby 데이터로 즉시 렌더, 이미지/리뷰는 가시 시 preview 엔드포인트로 지연 로드.
-import { useEffect, useRef, useState } from 'react';
-import { StoreSimpleWithExtraResponse, StoreType } from '../models/Store';
-import { StorePreviewSection } from '../models/StorePreview';
-import { ApiService } from '../services/ApiService';
+// Store List Item — 홈 리스트 SDUI BASIC_CARD를 추가 API 호출 없이 렌더링한다.
+import { useState } from 'react';
+import { HomeListBasicCard } from '../models/HomeList';
+import { SDChip } from '../models/HomeFilter';
+import { SDTextContent } from './SDTextContent';
 
 interface StoreListItemProps {
-  store: StoreSimpleWithExtraResponse;
-  deviceLocation: { lat: number; lng: number };
+  card: HomeListBasicCard;
   onClick: () => void;
-}
-
-function stripHtml(html: string): string {
-  return html.replace(/<[^>]+>/g, '').trim();
 }
 
 function Dot() {
   return <span style={{ width: 2, height: 2, borderRadius: 1, backgroundColor: '#B7B7B7', flexShrink: 0 }} />;
 }
 
-function Badge({ label, color, background }: { label: string; color: string; background: string }) {
+function MetaChip({ chip }: { chip: SDChip }) {
   return (
-    <span
-      className="inline-flex items-center shrink-0"
-      style={{
-        height: '16px',
-        padding: '0 5px',
-        borderRadius: '8px',
-        backgroundColor: background,
-        color,
-        fontFamily: 'Pretendard',
-        fontWeight: 600,
-        fontSize: '10px',
-        lineHeight: '16px',
-        letterSpacing: '-0.01em',
-      }}
-    >
-      {label}
+    <span className="inline-flex min-w-0 max-w-full items-center gap-1">
+      {chip.image?.url && (
+        <img
+          src={chip.image.url}
+          alt=""
+          className="shrink-0"
+          style={{ width: chip.image.style?.width || 14, height: chip.image.style?.height || 14 }}
+          onError={(event) => {
+            event.currentTarget.style.display = 'none';
+          }}
+        />
+      )}
+      {chip.text?.text && (
+        <span
+          className="min-w-0 truncate"
+          style={metaStyle(chip.text?.fontColor || '#787878')}
+        >
+          <SDTextContent value={chip.text} />
+        </span>
+      )}
+      {chip.additionalText?.text && (
+        <span className="shrink-0" style={metaStyle(chip.additionalText.fontColor || '#B7B7B7')}>
+          <SDTextContent value={chip.additionalText} />
+        </span>
+      )}
     </span>
   );
 }
 
-export default function StoreListItem({ store, deviceLocation, onClick }: StoreListItemProps) {
-  const rootRef = useRef<HTMLDivElement>(null);
-  const fetchedRef = useRef(false);
-  const [preview, setPreview] = useState<StorePreviewSection | null>(null);
-
-  // 가시 영역에 들어오면 preview 를 한 번만 로드(이미지/리뷰).
-  useEffect(() => {
-    const el = rootRef.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && !fetchedRef.current) {
-          fetchedRef.current = true;
-          io.disconnect();
-          ApiService.getInstance()
-            .fetchStorePreview(store.store.storeId, deviceLocation.lat, deviceLocation.lng)
-            .then(setPreview);
-        }
-      },
-      { rootMargin: '150px' }
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, [store.store.storeId, deviceLocation.lat, deviceLocation.lng]);
-
-  const { tags, visitCounts, rating, reviewsCount } = store.extra;
-  const isBoss = store.store.storeType === StoreType.bossStore;
-  const category = store.store.categories[0]?.name ?? '';
-  const openStatus = store.openStatus.status;
-  const distanceText = store.distanceM >= 1000 ? '1km +' : `${Math.round(store.distanceM)}m`;
-
-  const images = (preview?.images ?? []).slice(0, 3);
-  const reviewText = preview?.bodies?.find((b) => b.text?.text)?.text.text;
+export default function StoreListItem({ card, onClick }: StoreListItemProps) {
+  const [images, setImages] = useState(() => card.images.slice(0, 3));
+  const review = card.bodies.find((body) => body.text?.text);
 
   return (
     <div
-      ref={rootRef}
+      data-sheet-list-item
       onClick={onClick}
       className="w-full cursor-pointer active:bg-gray-50"
       style={{ padding: '16px 20px', backgroundColor: '#FFFFFF', borderBottom: '1px solid #F4F4F4' }}
     >
       {/* 헤더: 제목 + 뱃지 */}
-      <div className="flex items-center gap-1">
+      <div className="flex min-w-0 items-center gap-1">
         <span
-          className="truncate"
+          className="min-w-0 flex-1 truncate"
           style={{
             fontFamily: 'Pretendard',
             fontWeight: 700,
@@ -98,35 +70,43 @@ export default function StoreListItem({ store, deviceLocation, onClick }: StoreL
             color: '#0F0F0F',
           }}
         >
-          {store.store.storeName}
+          {card.header.title && <SDTextContent value={card.header.title} />}
         </span>
-        <div className="flex items-center gap-1 shrink-0">
-          {tags.isNew && <Badge label="NEW" color="#FFFFFF" background="#FF5C43" />}
-          {tags.hasIssuableCoupon && <Badge label="쿠폰" color="#FFFFFF" background="#FF9500" />}
-        </div>
+        {card.header.badge?.url && (
+          <img
+            src={card.header.badge.url}
+            alt=""
+            className="shrink-0"
+            style={{
+              width: card.header.badge.style?.width || 'auto',
+              height: card.header.badge.style?.height || 16,
+            }}
+            onError={(event) => {
+              event.currentTarget.style.display = 'none';
+            }}
+          />
+        )}
       </div>
 
-      {/* 1차 메타: 카테고리 · ★평점 (리뷰수) */}
-      <div className="flex items-center" style={{ gap: '6px', marginTop: '4px' }}>
-        {category && <span style={metaStyle('#787878')}>{category}</span>}
-        {category && <Dot />}
-        <span className="flex items-center gap-1">
-          <span style={{ fontSize: '12px', color: '#FFB020', lineHeight: 1 }}>★</span>
-          <span style={metaStyle('#5A5A5A')}>{rating.toFixed(1)}</span>
-          <span style={metaStyle('#B7B7B7')}>({reviewsCount})</span>
-        </span>
+      <div className="flex min-w-0 items-center overflow-hidden" style={{ gap: '6px', marginTop: '4px' }}>
+        {card.metadata.primary.map((chip, index) => (
+          <span
+            key={`primary-${index}`}
+            className={`inline-flex min-w-0 items-center gap-1.5 ${index === 0 ? 'overflow-hidden' : 'shrink-0'}`}
+          >
+            {index > 0 && <Dot />}
+            <MetaChip chip={chip} />
+          </span>
+        ))}
       </div>
 
-      {/* 2차 메타: 영업상태 · 거리 · (사장님 직영점 | 최근 방문 N명) — 서버 텍스트와 동일하게 구성 */}
-      <div className="flex items-center" style={{ gap: '6px', marginTop: '4px' }}>
-        {openStatus === 'OPEN' && <span style={metaStyle('#232323')}>영업 중</span>}
-        {openStatus === 'CLOSED' && <span style={metaStyle('#B7B7B7')}>영업 종료</span>}
-        {openStatus !== 'UNKNOWN' && <Dot />}
-        <span style={metaStyle('#787878')}>{distanceText}</span>
-        <Dot />
-        <span style={metaStyle('#787878')}>
-          {isBoss ? '사장님 직영점' : `최근 방문 ${visitCounts.existsCounts}명`}
-        </span>
+      <div className="flex min-w-0 items-center overflow-hidden" style={{ gap: '6px', marginTop: '4px' }}>
+        {card.metadata.secondary.map((chip, index) => (
+          <span key={`secondary-${index}`} className="inline-flex min-w-0 items-center gap-1.5">
+            {index > 0 && <Dot />}
+            <MetaChip chip={chip} />
+          </span>
+        ))}
       </div>
 
       {/* 이미지 (있으면): 3-up */}
@@ -138,33 +118,49 @@ export default function StoreListItem({ store, deviceLocation, onClick }: StoreL
               src={img.url}
               alt=""
               className="rounded-lg"
-              style={{ flex: 1, minWidth: 0, height: '120px', objectFit: 'cover' }}
+              style={{
+                flex: '1 1 0',
+                minWidth: 0,
+                height: '120px',
+                objectFit: 'cover',
+              }}
+              onError={() => {
+                setImages((currentImages) => currentImages.filter((image) => image.url !== img.url));
+              }}
             />
           ))}
         </div>
       )}
 
       {/* 리뷰 (있으면): 회색 박스 2줄 */}
-      {reviewText && (
+      {review && (
         <div
           style={{
             marginTop: '8px',
-            backgroundColor: '#F4F4F4',
+            backgroundColor: review.style?.backgroundColor,
             borderRadius: '12px',
             padding: '10px 12px',
-            fontFamily: 'Pretendard',
-            fontWeight: 500,
-            fontSize: '13px',
-            lineHeight: '18px',
-            letterSpacing: '-0.01em',
-            color: '#5A5A5A',
-            display: '-webkit-box',
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: 'vertical',
             overflow: 'hidden',
           }}
         >
-          {stripHtml(reviewText)}
+          <div
+            style={{
+              fontFamily: 'Pretendard',
+              fontWeight: 500,
+              fontSize: '13px',
+              lineHeight: '18px',
+              letterSpacing: '-0.01em',
+              color: review.text.fontColor,
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              overflowWrap: 'anywhere',
+              wordBreak: 'break-word',
+            }}
+          >
+            <SDTextContent value={review.text} />
+          </div>
         </div>
       )}
     </div>

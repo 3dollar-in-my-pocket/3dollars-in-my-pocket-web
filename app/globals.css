@@ -63,3 +63,33 @@ input, select, textarea {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/*
+ * SDText HTML은 서버가 내려준 내부 글자 크기의 비율을 유지한 채,
+ * 작은 모바일에서는 살짝 줄이고 큰 모바일에서는 살짝 키운다.
+ */
+.sd-text-html {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: baseline;
+  zoom: 1;
+}
+
+/* iPhone SE/mini 및 iPhone 17 기본형(402px) */
+@media (max-width: 402px) {
+  .sd-text-html {
+    zoom: 0.96;
+  }
+}
+
+/* iPhone Pro Max 계열 */
+@media (min-width: 430px) {
+  .sd-text-html {
+    zoom: 1.04;
+  }
+}
+
+/* SDK 옵션 적용 전 잠깐 생성되거나 남아 있는 NAVER 로고 컨트롤도 숨긴다. */
+.naver-map-container img[alt="NAVER"] {
+  display: none !important;
+}
