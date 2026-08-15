@@ -1,6 +1,14 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import GoogleAnalytics from "../src/components/GoogleAnalytics";
+import {
+  IS_INDEXABLE_SITE,
+  SITE_DESCRIPTION,
+  SITE_NAME,
+  SITE_TITLE,
+  SITE_URL,
+  THEME_COLOR,
+} from "../src/config/Site";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,15 +22,97 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "가슴속 3천원 - 내 주변 길거리 음식",
-  description: "내 주변의 길거리 음식점을 찾아보세요",
-  viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: SITE_TITLE,
+    template: `%s | ${SITE_NAME}`,
+  },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  keywords: [
+    "길거리 음식",
+    "붕어빵",
+    "타코야끼",
+    "어묵",
+    "푸드트럭",
+    "가슴속 3천원",
+  ],
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    locale: "ko_KR",
+    url: "/",
+    siteName: SITE_NAME,
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: `${SITE_NAME} - 내 주변 길거리 음식 찾기`,
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    images: ["/og-image.png"],
+  },
+  robots: {
+    index: IS_INDEXABLE_SITE,
+    follow: IS_INDEXABLE_SITE,
+    googleBot: {
+      index: IS_INDEXABLE_SITE,
+      follow: IS_INDEXABLE_SITE,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/apple-icon.png",
+  },
+  appleWebApp: {
+    capable: true,
+    title: SITE_NAME,
+    statusBarStyle: "default",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  verification: IS_INDEXABLE_SITE ? {
+    ...(process.env.GOOGLE_SITE_VERIFICATION
+      ? { google: process.env.GOOGLE_SITE_VERIFICATION }
+      : {}),
+    ...(process.env.NAVER_SITE_VERIFICATION
+      ? {
+          other: {
+            "naver-site-verification": process.env.NAVER_SITE_VERIFICATION,
+          },
+        }
+      : {}),
+  } : undefined,
   // iOS Safari Smart App Banner (TH-892)
   // 앱 미설치 상태로 유니버설 링크 진입 시 상단 앱 미리보기 영역이 비어 보이는 문제 방지
   // app-id: 가슴속 3천원 유저앱 App Store ID
   itunes: {
     appId: "1496099467",
   },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+  themeColor: THEME_COLOR,
 };
 
 export default function RootLayout({
@@ -37,7 +127,6 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
         <link
           rel="stylesheet"
           as="style"
@@ -49,6 +138,34 @@ export default function RootLayout({
             --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
           }
         `}</style>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@graph": [
+                {
+                  "@type": "WebSite",
+                  "@id": `${SITE_URL}/#website`,
+                  url: `${SITE_URL}/`,
+                  name: SITE_NAME,
+                  description: SITE_DESCRIPTION,
+                  inLanguage: "ko-KR",
+                },
+                {
+                  "@type": "MobileApplication",
+                  "@id": `${SITE_URL}/#application`,
+                  name: SITE_NAME,
+                  description: SITE_DESCRIPTION,
+                  operatingSystem: "iOS",
+                  applicationCategory: "LifestyleApplication",
+                  url: `${SITE_URL}/`,
+                  installUrl: "https://apps.apple.com/app/id1496099467",
+                },
+              ],
+            }).replace(/</g, "\\u003c"),
+          }}
+        />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
