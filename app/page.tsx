@@ -433,7 +433,19 @@ export default function Home() {
   };
 
   return (
-    <div className="relative h-[100dvh] w-full bg-white">
+    <main className="relative h-[100dvh] w-full bg-white">
+      <div className="sr-only">
+        <h1>내 주변 붕어빵 지도</h1>
+        <p>
+          가슴속 3천원은 붕어빵, 호떡, 어묵, 군고구마, 타코야끼 등
+          가까운 길거리 음식 판매점을 찾을 수 있는 전국 겨울철 간식 지도입니다.
+        </p>
+        <h2>붕어빵과 겨울철 간식 판매점 찾기</h2>
+        <p>
+          현재 위치를 기준으로 주변 간식 가게를 지도와 목록에서 확인하고,
+          원하는 간식 종류와 영업 상태에 따라 찾아보세요.
+        </p>
+      </div>
       {/* 리스트 상단까지만 지도의 실제 viewport로 사용한다.
           시트가 움직이면 지도 하단도 같은 진행도로 따라가므로 중심/검색 범위가 리스트 뒤에 가려지지 않는다. */}
       <div
@@ -706,6 +718,6 @@ export default function Home() {
           <div className="text-gray-600">주변 가게를 찾는 중...</div>
         </div>
       )}
-    </div>
+    </main>
   );
 }

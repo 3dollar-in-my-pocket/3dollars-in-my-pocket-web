@@ -89,7 +89,7 @@ npm run dev
 
 ### 새로운 컴포넌트 추가
 1. `src/components/` 디렉토리에 새 파일 생성
-2. TypeScript interface로 props 정의
+2. TypeScript interface로ex props 정의
 3. 기존 디자인 시스템에 맞춰 스타일링
 
 ### 새로운 API 서비스 추가

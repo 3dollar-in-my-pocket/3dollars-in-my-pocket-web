@@ -30,10 +30,16 @@ export const metadata: Metadata = {
   description: SITE_DESCRIPTION,
   applicationName: SITE_NAME,
   keywords: [
-    "길거리 음식",
+    "붕어빵 지도",
+    "간식 지도",
+    "겨울철 간식 지도",
+    "내 주변 붕어빵",
     "붕어빵",
+    "호떡",
+    "군고구마",
     "타코야끼",
     "어묵",
+    "길거리 음식 지도",
     "푸드트럭",
     "가슴속 3천원",
   ],
@@ -151,6 +157,19 @@ export default function RootLayout({
                   name: SITE_NAME,
                   description: SITE_DESCRIPTION,
                   inLanguage: "ko-KR",
+                  publisher: {
+                    "@id": `${SITE_URL}/#organization`,
+                  },
+                },
+                {
+                  "@type": "Organization",
+                  "@id": `${SITE_URL}/#organization`,
+                  name: SITE_NAME,
+                  url: `${SITE_URL}/`,
+                  logo: {
+                    "@type": "ImageObject",
+                    url: `${SITE_URL}/icon-512.png`,
+                  },
                 },
                 {
                   "@type": "MobileApplication",
@@ -161,6 +180,9 @@ export default function RootLayout({
                   applicationCategory: "LifestyleApplication",
                   url: `${SITE_URL}/`,
                   installUrl: "https://apps.apple.com/app/id1496099467",
+                  publisher: {
+                    "@id": `${SITE_URL}/#organization`,
+                  },
                 },
               ],
             }).replace(/</g, "\\u003c"),
