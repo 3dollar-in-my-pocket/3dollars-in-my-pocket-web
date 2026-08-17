@@ -98,6 +98,33 @@ function selectLink(value: unknown) {
   };
 }
 
+function selectFocusBounds(value: unknown) {
+  const bounds = asObject(value);
+  const southWest = asObject(bounds.southWest);
+  const northEast = asObject(bounds.northEast);
+  const coordinates = [
+    southWest.latitude,
+    southWest.longitude,
+    northEast.latitude,
+    northEast.longitude,
+  ];
+
+  if (!coordinates.every((coordinate) => typeof coordinate === 'number')) {
+    return null;
+  }
+
+  return {
+    southWest: {
+      latitude: southWest.latitude as number,
+      longitude: southWest.longitude as number,
+    },
+    northEast: {
+      latitude: northEast.latitude as number,
+      longitude: northEast.longitude as number,
+    },
+  };
+}
+
 function selectCard(value: unknown) {
   const card = asObject(value);
   if (card.type !== 'BASIC_CARD' || typeof card.cardId !== 'string') return null;
@@ -195,6 +222,7 @@ export async function GET(request: NextRequest) {
           hasMore: cursor.hasMore === true,
           nextCursor: typeof cursor.nextCursor === 'string' ? cursor.nextCursor : null,
         },
+        focusBounds: selectFocusBounds(data.focusBounds),
       },
     });
   } catch {

@@ -6,10 +6,12 @@ import { MapMarker } from '../models/Marker';
 import { SDChip } from '../models/HomeFilter';
 import { Config } from '../config/Environment';
 import { MAX_HOME_DISTANCE_M } from '../constants/HomeMap';
+import { HomeListFocusBounds } from '../models/HomeList';
 
 interface NaverMapProps {
   markers: MapMarker[];
   center: { lat: number; lng: number };
+  focusBounds?: HomeListFocusBounds | null;
   onMarkerClick?: (markerId: string) => void;
   selectedMarkerId?: string;
   onMapMove?: () => void;
@@ -25,6 +27,7 @@ declare global {
       maps: {
         Map: new (element: HTMLElement, options: unknown) => unknown;
         LatLng: new (lat: number, lng: number) => unknown;
+        LatLngBounds: new (southWest: unknown, northEast: unknown) => unknown;
         Marker: new (options: unknown) => unknown;
         Event: {
           addListener: (marker: unknown, event: string, callback: () => void) => void;
@@ -68,13 +71,14 @@ function createHomeListMarkerIcon(chip: SDChip) {
   };
 }
 
-export default function NaverMap({ markers, center, onMarkerClick, selectedMarkerId, onMapMove, onViewportChange }: NaverMapProps) {
+export default function NaverMap({ markers, center, focusBounds, onMarkerClick, selectedMarkerId, onMapMove, onViewportChange }: NaverMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<unknown>(null);
   const naverMarkersRef = useRef<unknown[]>([]);
   const onMapMoveRef = useRef(onMapMove);
   const onViewportChangeRef = useRef(onViewportChange);
   const userInteractionRef = useRef(false);
+  const programmaticBoundsChangeRef = useRef(false);
   const initialCenterRef = useRef(center);
 
   useEffect(() => {
@@ -172,16 +176,27 @@ export default function NaverMap({ markers, center, onMarkerClick, selectedMarke
       // dragend 시점에는 SDK의 viewport가 아직 이전 중심을 가리키는 경우가 있어,
       // 렌더링이 끝난 뒤 발생하는 idle에서 조회를 트리거한다.
       const markUserInteraction = () => {
+        if (programmaticBoundsChangeRef.current) return;
+        userInteractionRef.current = true;
+      };
+      const markUserDrag = () => {
+        programmaticBoundsChangeRef.current = false;
         userInteractionRef.current = true;
       };
       const handleMapIdle = () => {
+        if (programmaticBoundsChangeRef.current) {
+          notifyViewportChange(mapInstance);
+          userInteractionRef.current = false;
+          programmaticBoundsChangeRef.current = false;
+          return;
+        }
         if (!userInteractionRef.current) return;
         userInteractionRef.current = false;
         onMapMoveRef.current?.();
         notifyViewportChange(mapInstance);
       };
 
-      window.naver.maps.Event.addListener(mapInstance, 'dragstart', markUserInteraction);
+      window.naver.maps.Event.addListener(mapInstance, 'dragstart', markUserDrag);
       window.naver.maps.Event.addListener(mapInstance, 'zoom_changed', markUserInteraction);
       window.naver.maps.Event.addListener(mapInstance, 'idle', handleMapIdle);
       notifyViewportChange(mapInstance);
@@ -293,6 +308,27 @@ export default function NaverMap({ markers, center, onMarkerClick, selectedMarke
       newMarkers.forEach((marker: any) => marker.setMap(null));
     };
   }, [map, markers, selectedMarkerId, onMarkerClick]);
+
+  // API가 지정한 영역이 모두 보이도록 지도 중심과 줌을 함께 조정한다.
+  useEffect(() => {
+    if (!map || !window.naver || !focusBounds) return;
+
+    const bounds = new window.naver.maps.LatLngBounds(
+      new window.naver.maps.LatLng(
+        focusBounds.southWest.latitude,
+        focusBounds.southWest.longitude
+      ),
+      new window.naver.maps.LatLng(
+        focusBounds.northEast.latitude,
+        focusBounds.northEast.longitude
+      )
+    );
+
+    programmaticBoundsChangeRef.current = true;
+    userInteractionRef.current = false;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (map as any).fitBounds(bounds, 40);
+  }, [map, focusBounds]);
 
   // Update map center when center prop changes
   useEffect(() => {

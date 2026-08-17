@@ -34,10 +34,22 @@ export interface HomeListBasicCard {
   } | null;
 }
 
+export interface HomeListFocusBounds {
+  southWest: {
+    latitude: number;
+    longitude: number;
+  };
+  northEast: {
+    latitude: number;
+    longitude: number;
+  };
+}
+
 export interface HomeListSection {
   cards: HomeListBasicCard[];
   cursor: {
     nextCursor?: string | null;
     hasMore: boolean;
   };
+  focusBounds?: HomeListFocusBounds | null;
 }

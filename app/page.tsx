@@ -10,6 +10,7 @@ import HomeFilterBar from '../src/components/HomeFilterBar';
 import CategoryPickerModal from '../src/components/CategoryPickerModal';
 import {
   HomeListBasicCard,
+  HomeListFocusBounds,
   HomeListSection,
 } from '../src/models/HomeList';
 import { MapMarker } from '../src/models/Marker';
@@ -103,6 +104,7 @@ export default function Home() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [listResetKey, setListResetKey] = useState(0);
   const [mapCenter, setMapCenter] = useState({ lat: 37.5665, lng: 126.9780 });
+  const [focusBounds, setFocusBounds] = useState<HomeListFocusBounds | null>(null);
   const [currentAddress, setCurrentAddress] = useState('위치를 확인하는 중...');
   const [loading, setLoading] = useState(true);
   const [locationError, setLocationError] = useState<LocationError | null>(null);
@@ -168,6 +170,7 @@ export default function Home() {
       }
       setListResetKey((key) => key + 1);
       setCards(limitedCards);
+      setFocusBounds(homeList.focusBounds ?? null);
       setListCursor({
         ...homeList.cursor,
         hasMore: limitedCards.length < MAX_HOME_LIST_CARDS && homeList.cursor.hasMore,
@@ -211,6 +214,7 @@ export default function Home() {
       preloadStoreCardImages(limitedCards);
       setListResetKey((key) => key + 1);
       setCards(limitedCards);
+      setFocusBounds(homeListResult.value.focusBounds ?? null);
       setListCursor({
         ...homeListResult.value.cursor,
         hasMore: limitedCards.length < MAX_HOME_LIST_CARDS && homeListResult.value.cursor.hasMore,
@@ -456,6 +460,7 @@ export default function Home() {
         <NaverMap
           markers={mapMarkers}
           center={mapCenter}
+          focusBounds={focusBounds}
           onMarkerClick={handleMarkerClick}
           selectedMarkerId={selectedMarkerId}
           onMapMove={handleMapMove}

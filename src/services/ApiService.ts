@@ -60,6 +60,7 @@ export class ApiService {
           (card): card is HomeListBasicCard => card.type === 'BASIC_CARD'
         ),
         cursor: section?.cursor || { hasMore: false, nextCursor: null },
+        focusBounds: section?.focusBounds ?? null,
       };
     } catch (error) {
       console.error('Error fetching home list:', error);
