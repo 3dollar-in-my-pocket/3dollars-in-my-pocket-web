@@ -24,18 +24,7 @@ interface HomeFilterBarProps {
 
 // 현재 필터 상태에서 해당 라디오 바의 선택된 값.
 function currentValueFor(paramKey: string, filter: HomeFilterState): string | null {
-  switch (paramKey) {
-    case 'sortType':
-      return filter.sortType;
-    case 'filterConditions':
-      return filter.filterConditions;
-    case 'filterOpenStatuses':
-      return filter.filterOpenStatuses;
-    case 'targetStores':
-      return filter.targetStores;
-    default:
-      return null;
-  }
+  return filter[paramKey] ?? null;
 }
 
 function normalize(value: string | null | undefined): string | null {

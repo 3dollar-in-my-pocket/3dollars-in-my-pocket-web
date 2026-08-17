@@ -5,6 +5,16 @@ import {
   MAX_HOME_DISTANCE_M,
 } from '../constants/HomeMap';
 
+const RESERVED_HOME_LIST_PARAMS = new Set([
+  'sortType',
+  'categoryId',
+  'categoryIds',
+  'mapLatitude',
+  'mapLongitude',
+  'distanceM',
+  'cursor',
+]);
+
 export class ApiService {
   private static instance: ApiService;
 
@@ -36,9 +46,11 @@ export class ApiService {
         sortType: filter?.sortType || 'DISTANCE_ASC',
       });
 
-      if (filter?.filterConditions) params.set('filterConditions', filter.filterConditions);
-      if (filter?.filterOpenStatuses) params.set('filterOpenStatuses', filter.filterOpenStatuses);
-      if (filter?.targetStores) params.set('targetStores', filter.targetStores);
+      Object.entries(filter ?? {}).forEach(([paramKey, paramValue]) => {
+        if (!RESERVED_HOME_LIST_PARAMS.has(paramKey) && paramValue) {
+          params.set(paramKey, paramValue);
+        }
+      });
       if (filter?.categoryId) params.set('categoryIds', filter.categoryId);
       if (cursor) params.set('cursor', cursor);
 
@@ -69,9 +81,12 @@ export class ApiService {
   }
 
   // SDUI 홈 필터 화면 (필터 칩 구성).
-  async fetchHomeFilter(): Promise<HomeFilterSection[]> {
+  async fetchHomeFilter(preset?: string): Promise<HomeFilterSection[]> {
     try {
-      const response = await fetch('/api/screen-home');
+      const params = new URLSearchParams();
+      if (preset) params.set('preset', preset);
+      const query = params.toString();
+      const response = await fetch(`/api/screen-home${query ? `?${query}` : ''}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }

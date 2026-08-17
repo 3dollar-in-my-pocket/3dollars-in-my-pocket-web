@@ -63,6 +63,7 @@ export interface HomeFilterSection {
 
 // Selected filter state — maps directly to the home list query params.
 export interface HomeFilterState {
+  [paramKey: string]: string | null;
   sortType: string; // "DISTANCE_ASC" | "LATEST"
   filterConditions: string | null; // "RECENT_ACTIVITY" | null
   filterOpenStatuses: string | null; // "OPEN" | null

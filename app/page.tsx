@@ -50,14 +50,6 @@ const preloadStoreCardImages = (cards: HomeListBasicCard[]) => {
   });
 };
 
-// SDUI 라디오 바 paramKey → 로컬 필터 상태 키 매핑.
-const RADIO_PARAM_KEYS: Record<string, keyof HomeFilterState> = {
-  sortType: 'sortType',
-  filterConditions: 'filterConditions',
-  filterOpenStatuses: 'filterOpenStatuses',
-  targetStores: 'targetStores',
-};
-
 const getLocationErrorContent = (error: LocationError) => {
   if (error.reason === 'PERMISSION_DENIED') {
     return {
@@ -303,7 +295,8 @@ export default function Home() {
 
   // 초기화: 위치 + 주소 + 필터 화면 + 카테고리 + 가게.
   useEffect(() => {
-    ApiService.getInstance().fetchHomeFilter().then(setFilterSections);
+    const preset = new URLSearchParams(window.location.search).get('preset') ?? undefined;
+    ApiService.getInstance().fetchHomeFilter(preset).then(setFilterSections);
     ApiService.getInstance().fetchCategories().then(setCategories);
     requestCurrentLocation();
   }, [requestCurrentLocation]);
@@ -408,18 +401,20 @@ export default function Home() {
   // 필터 변경 → 마지막 검색 중심에서 재조회.
   const applyFilter = (patch: Partial<HomeFilterState>) => {
     if (autoSearchTimerRef.current) clearTimeout(autoSearchTimerRef.current);
-    const next = { ...filter, ...patch };
+    const next: HomeFilterState = { ...filter };
+    Object.entries(patch).forEach(([paramKey, paramValue]) => {
+      if (paramValue !== undefined) next[paramKey] = paramValue;
+    });
     setFilter(next);
     loadHomeList(searchCenterRef.current, next, searchDistanceRef.current);
   };
 
   const handleChangeRadio = (paramKey: string, paramValue: string | null) => {
-    const stateKey = RADIO_PARAM_KEYS[paramKey];
-    if (!stateKey) return;
-    if (stateKey === 'sortType') {
+    if (!paramKey) return;
+    if (paramKey === 'sortType') {
       applyFilter({ sortType: paramValue ?? 'DISTANCE_ASC' });
     } else {
-      applyFilter({ [stateKey]: paramValue } as Partial<HomeFilterState>);
+      applyFilter({ [paramKey]: paramValue });
     }
   };
 

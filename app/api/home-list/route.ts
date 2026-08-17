@@ -7,16 +7,11 @@ import {
 
 type JsonObject = Record<string, unknown>;
 
-const FORWARDED_PARAMS = [
-  'sortType',
-  'filterCertifiedStores',
-  'filterOpenStatuses',
-  'categoryIds',
-  'targetStores',
-  'filterConditions',
-  'filterMinReviewRating',
-  'cursor',
-] as const;
+const RESERVED_REQUEST_PARAMS = new Set([
+  'mapLatitude',
+  'mapLongitude',
+  'distanceM',
+]);
 
 const asObject = (value: unknown): JsonObject =>
   value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -184,10 +179,9 @@ export async function GET(request: NextRequest) {
   try {
     const query = new URLSearchParams({ mapLatitude, mapLongitude });
 
-    for (const key of FORWARDED_PARAMS) {
-      const value = searchParams.get(key);
-      if (value) query.set(key, value);
-    }
+    searchParams.forEach((value, key) => {
+      if (value && !RESERVED_REQUEST_PARAMS.has(key)) query.set(key, value);
+    });
 
     const requestedDistanceM = Number(searchParams.get('distanceM'));
     const distanceM = Number.isFinite(requestedDistanceM) && requestedDistanceM > 0

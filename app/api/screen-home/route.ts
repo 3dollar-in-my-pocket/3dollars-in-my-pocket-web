@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createApiUrl } from '@/src/server/upstream';
 
 type JsonObject = Record<string, unknown>;
@@ -99,9 +99,13 @@ function selectBar(value: unknown) {
 }
 
 // 홈 필터 화면 프록시
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const response = await fetch(createApiUrl('/api/v1/screen/home'), {
+    const preset = request.nextUrl.searchParams.get('preset');
+    const query = new URLSearchParams();
+    if (preset) query.set('preset', preset);
+
+    const response = await fetch(createApiUrl('/api/v1/screen/home', query), {
       headers: { 'Content-Type': 'application/json' },
       // 필터 구성은 자주 바뀌지 않으므로 짧게 캐시.
       next: { revalidate: 300 },
