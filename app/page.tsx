@@ -15,8 +15,8 @@ import {
 } from '../src/models/HomeList';
 import { MapMarker } from '../src/models/Marker';
 import {
-  DEFAULT_HOME_FILTER,
   HomeFilterSection,
+  HomeFilterRadioBar,
   HomeFilterState,
   StoreCategory,
 } from '../src/models/HomeFilter';
@@ -28,10 +28,26 @@ import {
 } from '../src/services/LocationService';
 import { Config } from '../src/config/Environment';
 import { sdTextToPlainText } from '../src/components/SDTextContent';
+import { DEFAULT_HOME_DISTANCE_M } from '../src/constants/HomeMap';
 
 // 상단 주소/필터 영역 높이. 시트 펼침 시 흰 배경이 이 높이까지 덮어 시트와 이어진다.
 const TOP_CHROME_HEIGHT = 120;
 const MAX_HOME_LIST_CARDS = 100;
+
+const createInitialFilter = (sections: HomeFilterSection[]): HomeFilterState => {
+  const initialFilter: HomeFilterState = {};
+
+  sections.forEach((section) => {
+    section.bars.forEach((bar) => {
+      if (bar.type !== 'RADIO_BAR') return;
+      const radioBar = bar as HomeFilterRadioBar;
+      if (!radioBar.paramKey || radioBar.options.length === 0) return;
+      initialFilter[radioBar.paramKey] = radioBar.options[0].paramValue ?? null;
+    });
+  });
+
+  return initialFilter;
+};
 
 // 리스트가 화면에 커밋되기 전에 카드 이미지를 요청해 빠른 스크롤에도 바로 표시한다.
 const preloadedImageUrls = new Set<string>();
@@ -97,6 +113,7 @@ export default function Home() {
   const [listResetKey, setListResetKey] = useState(0);
   const [mapCenter, setMapCenter] = useState({ lat: 37.5665, lng: 126.9780 });
   const [focusBounds, setFocusBounds] = useState<HomeListFocusBounds | null>(null);
+  const [mapZoomResetKey, setMapZoomResetKey] = useState(0);
   const [currentAddress, setCurrentAddress] = useState('위치를 확인하는 중...');
   const [loading, setLoading] = useState(true);
   const [locationError, setLocationError] = useState<LocationError | null>(null);
@@ -104,7 +121,7 @@ export default function Home() {
 
   // 필터 상태
   const [filterSections, setFilterSections] = useState<HomeFilterSection[]>([]);
-  const [filter, setFilter] = useState<HomeFilterState>(DEFAULT_HOME_FILTER);
+  const [filter, setFilter] = useState<HomeFilterState>({});
   const [categories, setCategories] = useState<StoreCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<StoreCategory | null>(null);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
@@ -121,7 +138,7 @@ export default function Home() {
   const searchCenterRef = useRef({ lat: 37.5665, lng: 126.9780 });
   const viewportDistanceRef = useRef(1000);
   const searchDistanceRef = useRef(1000);
-  const filterRef = useRef<HomeFilterState>(DEFAULT_HOME_FILTER);
+  const filterRef = useRef<HomeFilterState>({});
   const mapInteractionRef = useRef(false);
   const autoSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadingMoreRef = useRef(false);
@@ -176,7 +193,10 @@ export default function Home() {
     }
   };
 
-  const initializeAtLocation = useCallback(async (center: { lat: number; lng: number }) => {
+  const initializeAtLocation = useCallback(async (
+    center: { lat: number; lng: number },
+    initialFilter?: HomeFilterState
+  ) => {
     const generation = ++listGenerationRef.current;
     setHomeListError(null);
     deviceLocationRef.current = center;
@@ -190,7 +210,7 @@ export default function Home() {
         center.lng,
         center.lat,
         center.lng,
-        filterRef.current,
+        initialFilter ?? filterRef.current,
         viewportDistanceRef.current
       ),
     ]);
@@ -265,7 +285,7 @@ export default function Home() {
     }
   }, [cards, filter, listCursor]);
 
-  const requestCurrentLocation = useCallback(async () => {
+  const requestCurrentLocation = useCallback(async (initialFilter?: HomeFilterState) => {
     setLoading(true);
     setLocationError(null);
 
@@ -283,7 +303,10 @@ export default function Home() {
       }
 
       try {
-        await initializeAtLocation({ lat: location.latitude, lng: location.longitude });
+        await initializeAtLocation(
+          { lat: location.latitude, lng: location.longitude },
+          initialFilter
+        );
       } catch (error) {
         console.error('Error initializing stores at current location:', error);
         setHomeListError('주변 가게를 불러올 수 없습니다');
@@ -295,10 +318,18 @@ export default function Home() {
 
   // 초기화: 위치 + 주소 + 필터 화면 + 카테고리 + 가게.
   useEffect(() => {
-    const preset = new URLSearchParams(window.location.search).get('preset') ?? undefined;
-    ApiService.getInstance().fetchHomeFilter(preset).then(setFilterSections);
+    const initialize = async () => {
+      const preset = new URLSearchParams(window.location.search).get('preset') ?? undefined;
+      const sections = await ApiService.getInstance().fetchHomeFilter(preset);
+      const initialFilter = createInitialFilter(sections);
+      setFilterSections(sections);
+      setFilter(initialFilter);
+      filterRef.current = initialFilter;
+      await requestCurrentLocation(initialFilter);
+    };
+
     ApiService.getInstance().fetchCategories().then(setCategories);
-    requestCurrentLocation();
+    initialize();
   }, [requestCurrentLocation]);
 
   useEffect(() => () => {
@@ -347,7 +378,10 @@ export default function Home() {
   const handleCurrentLocationClick = async () => {
     mapInteractionRef.current = false;
     if (autoSearchTimerRef.current) clearTimeout(autoSearchTimerRef.current);
+    viewportDistanceRef.current = DEFAULT_HOME_DISTANCE_M;
+    searchDistanceRef.current = DEFAULT_HOME_DISTANCE_M;
     await requestCurrentLocation();
+    setMapZoomResetKey((key) => key + 1);
   };
 
   const handleUseDefaultLocation = async () => {
@@ -411,11 +445,7 @@ export default function Home() {
 
   const handleChangeRadio = (paramKey: string, paramValue: string | null) => {
     if (!paramKey) return;
-    if (paramKey === 'sortType') {
-      applyFilter({ sortType: paramValue ?? 'DISTANCE_ASC' });
-    } else {
-      applyFilter({ [paramKey]: paramValue });
-    }
+    applyFilter({ [paramKey]: paramValue });
   };
 
   const handleSelectCategory = (category: StoreCategory | null) => {
@@ -456,6 +486,7 @@ export default function Home() {
           markers={mapMarkers}
           center={mapCenter}
           focusBounds={focusBounds}
+          zoomResetKey={mapZoomResetKey}
           onMarkerClick={handleMarkerClick}
           selectedMarkerId={selectedMarkerId}
           onMapMove={handleMapMove}
@@ -677,7 +708,7 @@ export default function Home() {
             </p>
             <button
               type="button"
-              onClick={requestCurrentLocation}
+              onClick={() => requestCurrentLocation()}
               className="w-full"
               style={{
                 marginTop: 20,

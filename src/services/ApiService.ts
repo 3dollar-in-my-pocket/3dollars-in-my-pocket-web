@@ -6,7 +6,6 @@ import {
 } from '../constants/HomeMap';
 
 const RESERVED_HOME_LIST_PARAMS = new Set([
-  'sortType',
   'categoryId',
   'categoryIds',
   'mapLatitude',
@@ -43,7 +42,6 @@ export class ApiService {
         mapLatitude: mapLatitude.toString(),
         mapLongitude: mapLongitude.toString(),
         distanceM: normalizedDistance.toString(),
-        sortType: filter?.sortType || 'DISTANCE_ASC',
       });
 
       Object.entries(filter ?? {}).forEach(([paramKey, paramValue]) => {

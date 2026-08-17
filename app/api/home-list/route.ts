@@ -202,8 +202,6 @@ export async function GET(request: NextRequest) {
       : DEFAULT_HOME_DISTANCE_M;
     query.set('distanceM', distanceM.toString());
 
-    if (!query.has('sortType')) query.set('sortType', 'DISTANCE_ASC');
-
     const response = await fetch(
       createApiUrl('/api/v1/screen/home/section/list', query),
       { headers: getDeviceLocationHeaders(request) }

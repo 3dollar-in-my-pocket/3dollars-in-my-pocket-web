@@ -12,6 +12,7 @@ interface NaverMapProps {
   markers: MapMarker[];
   center: { lat: number; lng: number };
   focusBounds?: HomeListFocusBounds | null;
+  zoomResetKey?: number;
   onMarkerClick?: (markerId: string) => void;
   selectedMarkerId?: string;
   onMapMove?: () => void;
@@ -71,7 +72,7 @@ function createHomeListMarkerIcon(chip: SDChip) {
   };
 }
 
-export default function NaverMap({ markers, center, focusBounds, onMarkerClick, selectedMarkerId, onMapMove, onViewportChange }: NaverMapProps) {
+export default function NaverMap({ markers, center, focusBounds, zoomResetKey = 0, onMarkerClick, selectedMarkerId, onMapMove, onViewportChange }: NaverMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<unknown>(null);
   const naverMarkersRef = useRef<unknown[]>([]);
@@ -84,6 +85,7 @@ export default function NaverMap({ markers, center, focusBounds, onMarkerClick, 
   const appliedMapRef = useRef<unknown>(null);
   const appliedCenterRef = useRef(center);
   const appliedFocusBoundsKeyRef = useRef<string | null>(null);
+  const appliedZoomResetKeyRef = useRef(zoomResetKey);
 
   useEffect(() => {
     onMapMoveRef.current = onMapMove;
@@ -186,12 +188,10 @@ export default function NaverMap({ markers, center, focusBounds, onMarkerClick, 
       // 렌더링이 끝난 뒤 발생하는 idle에서 조회를 트리거한다.
       const markUserInteraction = () => {
         if (programmaticBoundsChangeRef.current) return;
-        focusBoundsActiveRef.current = false;
         userInteractionRef.current = true;
       };
       const markUserDrag = () => {
         programmaticBoundsChangeRef.current = false;
-        focusBoundsActiveRef.current = false;
         userInteractionRef.current = true;
       };
       const handleMapIdle = () => {
@@ -204,7 +204,7 @@ export default function NaverMap({ markers, center, focusBounds, onMarkerClick, 
         if (!userInteractionRef.current) return;
         userInteractionRef.current = false;
         onMapMoveRef.current?.();
-        notifyViewportChange(mapInstance);
+        notifyViewportChange(mapInstance, !focusBoundsActiveRef.current);
       };
 
       window.naver.maps.Event.addListener(mapInstance, 'dragstart', markUserDrag);
@@ -337,10 +337,29 @@ export default function NaverMap({ markers, center, focusBounds, onMarkerClick, 
       appliedCenterRef.current.lat !== center.lat ||
       appliedCenterRef.current.lng !== center.lng;
     const focusBoundsChanged = appliedFocusBoundsKeyRef.current !== focusBoundsKey;
+    const zoomResetRequested = appliedZoomResetKeyRef.current !== zoomResetKey;
 
     appliedMapRef.current = map;
     appliedCenterRef.current = center;
     appliedFocusBoundsKeyRef.current = focusBoundsKey;
+    appliedZoomResetKeyRef.current = zoomResetKey;
+
+    if (!focusBounds && focusBoundsChanged) {
+      focusBoundsActiveRef.current = false;
+    }
+
+    if (zoomResetRequested) {
+      programmaticBoundsChangeRef.current = true;
+      focusBoundsActiveRef.current = false;
+      userInteractionRef.current = false;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (map as any).setOptions({ minZoom: 0 });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (map as any).setZoom(Config.MAP_ZOOM_LEVEL);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (map as any).panTo(new window.naver.maps.LatLng(center.lat, center.lng));
+      return;
+    }
 
     // 새 bounds가 도착한 경우 center 이동보다 우선한다.
     if (focusBounds && (mapChanged || focusBoundsChanged)) {
@@ -374,11 +393,10 @@ export default function NaverMap({ markers, center, focusBounds, onMarkerClick, 
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if ((mapChanged || centerChanged) && typeof (map as any).panTo === 'function') {
-      focusBoundsActiveRef.current = false;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (map as any).panTo(new window.naver.maps.LatLng(center.lat, center.lng));
     }
-  }, [map, center, focusBounds]);
+  }, [map, center, focusBounds, zoomResetKey]);
 
   return (
     <div 

@@ -63,21 +63,9 @@ export interface HomeFilterSection {
 
 // Selected filter state — maps directly to the home list query params.
 export interface HomeFilterState {
-  [paramKey: string]: string | null;
-  sortType: string; // "DISTANCE_ASC" | "LATEST"
-  filterConditions: string | null; // "RECENT_ACTIVITY" | null
-  filterOpenStatuses: string | null; // "OPEN" | null
-  targetStores: string | null; // "BOSS_STORE" | null
-  categoryId: string | null;
+  [paramKey: string]: string | null | undefined;
+  categoryId?: string | null;
 }
-
-export const DEFAULT_HOME_FILTER: HomeFilterState = {
-  sortType: 'DISTANCE_ASC',
-  filterConditions: null,
-  filterOpenStatuses: null,
-  targetStores: null,
-  categoryId: null,
-};
 
 // Store food category — GET /api/v4/store/categories → { data: [...] }
 export interface StoreCategory {
