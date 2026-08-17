@@ -104,9 +104,22 @@ function selectFocusBounds(value: unknown) {
     northEast.longitude,
   ];
 
-  if (!coordinates.every((coordinate) => typeof coordinate === 'number')) {
+  if (!coordinates.every((coordinate) => (
+    typeof coordinate === 'number' && Number.isFinite(coordinate)
+  ))) {
     return null;
   }
+
+  const [southLatitude, westLongitude, northLatitude, eastLongitude] = coordinates as number[];
+  const isValidCoordinateRange =
+    southLatitude >= -90 && southLatitude <= 90 &&
+    northLatitude >= -90 && northLatitude <= 90 &&
+    westLongitude >= -180 && westLongitude <= 180 &&
+    eastLongitude >= -180 && eastLongitude <= 180;
+  const isOrderedBounds =
+    southLatitude <= northLatitude && westLongitude <= eastLongitude;
+
+  if (!isValidCoordinateRange || !isOrderedBounds) return null;
 
   return {
     southWest: {
@@ -216,7 +229,8 @@ export async function GET(request: NextRequest) {
           hasMore: cursor.hasMore === true,
           nextCursor: typeof cursor.nextCursor === 'string' ? cursor.nextCursor : null,
         },
-        focusBounds: selectFocusBounds(data.focusBounds),
+        // focusedBounds 명칭으로 응답하는 서버 버전도 호환한다.
+        focusBounds: selectFocusBounds(data.focusBounds ?? data.focusedBounds),
       },
     });
   } catch {

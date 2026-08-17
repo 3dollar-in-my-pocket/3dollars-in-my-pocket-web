@@ -79,7 +79,11 @@ export default function NaverMap({ markers, center, focusBounds, onMarkerClick, 
   const onViewportChangeRef = useRef(onViewportChange);
   const userInteractionRef = useRef(false);
   const programmaticBoundsChangeRef = useRef(false);
+  const focusBoundsActiveRef = useRef(false);
   const initialCenterRef = useRef(center);
+  const appliedMapRef = useRef<unknown>(null);
+  const appliedCenterRef = useRef(center);
+  const appliedFocusBoundsKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     onMapMoveRef.current = onMapMove;
@@ -89,7 +93,10 @@ export default function NaverMap({ markers, center, focusBounds, onMarkerClick, 
     onViewportChangeRef.current = onViewportChange;
   }, [onViewportChange]);
 
-  const notifyViewportChange = (mapInstance: unknown) => {
+  const notifyViewportChange = (
+    mapInstance: unknown,
+    enforceDistanceLimit: boolean = true
+  ) => {
     const callback = onViewportChangeRef.current;
     if (!callback) return;
 
@@ -113,27 +120,29 @@ export default function NaverMap({ markers, center, focusBounds, onMarkerClick, 
       ...corners.map((corner) => getDistanceM(viewportCenter, corner))
     ));
 
-    // 현재 viewport 크기에서 최대 검색 반경을 넘지 않는 최소 줌 레벨을 SDK에 설정한다.
-    // minZoom이 줌 아웃 제스처 자체를 제한하며, ResizeObserver 호출 시 다시 계산된다.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const currentZoom = (mapInstance as any).getZoom();
-    const minimumZoom = Math.max(
-      0,
-      currentZoom + Math.ceil(Math.log2(distanceM / MAX_HOME_DISTANCE_M))
-    );
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (mapInstance as any).setOptions({ minZoom: minimumZoom });
-
-    // 화면의 가장 먼 모서리가 최대 검색 반경을 넘으면 필요한 만큼 다시 확대한다.
-    // 지도 거리는 줌 레벨이 1 증가할 때 대략 절반이 된다.
-    if (distanceM > MAX_HOME_DISTANCE_M) {
-      const zoomIncrease = Math.max(
-        1,
-        Math.ceil(Math.log2(distanceM / MAX_HOME_DISTANCE_M))
+    if (enforceDistanceLimit) {
+      // 현재 viewport 크기에서 최대 검색 반경을 넘지 않는 최소 줌 레벨을 SDK에 설정한다.
+      // minZoom이 줌 아웃 제스처 자체를 제한하며, ResizeObserver 호출 시 다시 계산된다.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const currentZoom = (mapInstance as any).getZoom();
+      const minimumZoom = Math.max(
+        0,
+        currentZoom + Math.ceil(Math.log2(distanceM / MAX_HOME_DISTANCE_M))
       );
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (mapInstance as any).setZoom(currentZoom + zoomIncrease);
-      return;
+      (mapInstance as any).setOptions({ minZoom: minimumZoom });
+
+      // 화면의 가장 먼 모서리가 최대 검색 반경을 넘으면 필요한 만큼 다시 확대한다.
+      // 지도 거리는 줌 레벨이 1 증가할 때 대략 절반이 된다.
+      if (distanceM > MAX_HOME_DISTANCE_M) {
+        const zoomIncrease = Math.max(
+          1,
+          Math.ceil(Math.log2(distanceM / MAX_HOME_DISTANCE_M))
+        );
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (mapInstance as any).setZoom(currentZoom + zoomIncrease);
+        return;
+      }
     }
 
     callback({ center: viewportCenter, distanceM });
@@ -177,15 +186,17 @@ export default function NaverMap({ markers, center, focusBounds, onMarkerClick, 
       // 렌더링이 끝난 뒤 발생하는 idle에서 조회를 트리거한다.
       const markUserInteraction = () => {
         if (programmaticBoundsChangeRef.current) return;
+        focusBoundsActiveRef.current = false;
         userInteractionRef.current = true;
       };
       const markUserDrag = () => {
         programmaticBoundsChangeRef.current = false;
+        focusBoundsActiveRef.current = false;
         userInteractionRef.current = true;
       };
       const handleMapIdle = () => {
         if (programmaticBoundsChangeRef.current) {
-          notifyViewportChange(mapInstance);
+          notifyViewportChange(mapInstance, false);
           userInteractionRef.current = false;
           programmaticBoundsChangeRef.current = false;
           return;
@@ -236,7 +247,7 @@ export default function NaverMap({ markers, center, focusBounds, onMarkerClick, 
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (map as any).setCenter(currentCenter);
           window.naver.maps.Event.trigger(map, 'resize');
-          notifyViewportChange(map);
+          notifyViewportChange(map, !focusBoundsActiveRef.current);
         });
       });
     });
@@ -309,35 +320,65 @@ export default function NaverMap({ markers, center, focusBounds, onMarkerClick, 
     };
   }, [map, markers, selectedMarkerId, onMarkerClick]);
 
-  // API가 지정한 영역이 모두 보이도록 지도 중심과 줌을 함께 조정한다.
+  // bounds와 center 이동을 하나의 effect에서 처리해 서로의 결과를 덮어쓰지 않게 한다.
   useEffect(() => {
-    if (!map || !window.naver || !focusBounds) return;
+    if (!map || !window.naver) return;
 
-    const bounds = new window.naver.maps.LatLngBounds(
-      new window.naver.maps.LatLng(
-        focusBounds.southWest.latitude,
-        focusBounds.southWest.longitude
-      ),
-      new window.naver.maps.LatLng(
-        focusBounds.northEast.latitude,
-        focusBounds.northEast.longitude
-      )
-    );
+    const focusBoundsKey = focusBounds
+      ? [
+          focusBounds.southWest.latitude,
+          focusBounds.southWest.longitude,
+          focusBounds.northEast.latitude,
+          focusBounds.northEast.longitude,
+        ].join(',')
+      : null;
+    const mapChanged = appliedMapRef.current !== map;
+    const centerChanged =
+      appliedCenterRef.current.lat !== center.lat ||
+      appliedCenterRef.current.lng !== center.lng;
+    const focusBoundsChanged = appliedFocusBoundsKeyRef.current !== focusBoundsKey;
 
-    programmaticBoundsChangeRef.current = true;
-    userInteractionRef.current = false;
+    appliedMapRef.current = map;
+    appliedCenterRef.current = center;
+    appliedFocusBoundsKeyRef.current = focusBoundsKey;
+
+    // 새 bounds가 도착한 경우 center 이동보다 우선한다.
+    if (focusBounds && (mapChanged || focusBoundsChanged)) {
+      const bounds = new window.naver.maps.LatLngBounds(
+        new window.naver.maps.LatLng(
+          focusBounds.southWest.latitude,
+          focusBounds.southWest.longitude
+        ),
+        new window.naver.maps.LatLng(
+          focusBounds.northEast.latitude,
+          focusBounds.northEast.longitude
+        )
+      );
+
+      programmaticBoundsChangeRef.current = true;
+      focusBoundsActiveRef.current = true;
+      userInteractionRef.current = false;
+      // 이전 viewport에서 계산한 최소 줌이 새 bounds의 자동 줌 계산을 막지 않게 한다.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (map as any).setOptions({ minZoom: 0 });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (map as any).fitBounds(bounds, {
+        // 상단 주소/필터 UI에 좌표가 가리지 않도록 위쪽 여백을 더 크게 둔다.
+        top: 144,
+        right: 64,
+        bottom: 64,
+        left: 64,
+      });
+      return;
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (map as any).fitBounds(bounds, 40);
-  }, [map, focusBounds]);
-
-  // Update map center when center prop changes
-  useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (map && typeof (map as any).panTo === 'function') {
+    if ((mapChanged || centerChanged) && typeof (map as any).panTo === 'function') {
+      focusBoundsActiveRef.current = false;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (map as any).panTo(new window.naver.maps.LatLng(center.lat, center.lng));
     }
-  }, [map, center]);
+  }, [map, center, focusBounds]);
 
   return (
     <div 
