@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { cookies, headers } from 'next/headers';
 import Image from 'next/image';
+import Link from 'next/link';
 import {
   EVENT_TOKEN_COOKIE,
   fetchMyPromotionResult,
@@ -60,7 +61,61 @@ function Hero({ dimmed = false }: { dimmed?: boolean }) {
   );
 }
 
-export default async function MySiblingsRomance2Page() {
+function EventMain() {
+  return (
+    <>
+      <Hero />
+      <span className={styles.chip}>당첨자 발표</span>
+      <h1 className={styles.title}>
+        연애남매2 투표 이벤트
+        <br />
+        당첨 결과를 확인해 보세요
+      </h1>
+      <p className={styles.description}>
+        투표에 댓글을 남겨 주신 분들 중 30명을 추첨해 웨이브 이용권을 드려요.
+      </p>
+      <div className={styles.card}>
+        <div className={styles.row}>
+          <span>투표 기간</span>
+          <span>11월 9일(월) ~ 11월 29일(일)</span>
+        </div>
+        <div className={styles.row}>
+          <span>당첨 인원</span>
+          <span>30명</span>
+        </div>
+        <div className={styles.row}>
+          <span>경품</span>
+          <span>웨이브 광고형 스탠다드 1개월</span>
+        </div>
+      </div>
+      <div className={styles.spacer} />
+      <Link
+        href="?step=result"
+        className={`${styles.button} ${styles.primary}`}
+      >
+        당첨 확인하기
+      </Link>
+    </>
+  );
+}
+
+export default async function MySiblingsRomance2Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ step?: string }>;
+}) {
+  const { step } = await searchParams;
+
+  if (step !== 'result') {
+    return (
+      <main className={styles.page}>
+        <div className={styles.content}>
+          <EventMain />
+        </div>
+      </main>
+    );
+  }
+
   const state = await resolveViewState();
 
   return (
