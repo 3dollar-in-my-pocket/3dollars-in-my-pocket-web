@@ -1526,3 +1526,59 @@
     animation: none;
   }
 }
+
+/* ---------- 로딩 스켈레톤 (loading.tsx) ---------- */
+
+.skeleton {
+  display: block;
+  border-radius: 8px;
+  background: var(--gray-10);
+  animation: skeletonPulse 1.2s ease-in-out infinite;
+}
+
+.skeletonOnColor {
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.skeletonOnPink {
+  background: var(--pink-100);
+}
+
+.skeletonStack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.skeletonHeroImage {
+  align-self: center;
+}
+
+.skeletonPointCard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 22px;
+  border-radius: 24px;
+  background: var(--pink);
+}
+
+.skeletonButton {
+  flex-shrink: 0;
+}
+
+@keyframes skeletonPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
