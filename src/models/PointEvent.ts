@@ -2,6 +2,16 @@
 
 export type PointHistoryType = 'EARN' | 'REVOKE' | 'USE' | (string & {});
 
+/**
+ * 내역 출처. reason 으로 구조가 갈린다.
+ * 모르는 reason 이 올 수 있으므로 화면은 description 으로 대신 표시한다.
+ */
+export type PointHistorySource = {
+  reason: 'MISSION_COMPLETED' | (string & {});
+  /** reason = MISSION_COMPLETED 일 때 */
+  mission?: { missionId: string; title: string };
+};
+
 export type PointHistory = {
   pointHistoryId: number;
   /** EARN: 적립, REVOKE: 회수, USE: 사용(응모). 모르는 값은 description 으로 표시 */
@@ -9,6 +19,8 @@ export type PointHistory = {
   description: string;
   /** 부호 있는 변동량 (EARN 양수, REVOKE·USE 음수) */
   amount: number;
+  /** 출처를 찾지 못하면 null */
+  source?: PointHistorySource | null;
   createdAt: string;
 };
 

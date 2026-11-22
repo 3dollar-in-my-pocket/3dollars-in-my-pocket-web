@@ -141,6 +141,18 @@ export function withRunningBalance(
   });
 }
 
+/**
+ * 내역 제목. 미션 적립은 미션 이름(예: '가게 방문')을 쓰고,
+ * 출처가 없거나 모르는 출처면 서버 description('미션 완료' 등)을 쓴다.
+ */
+export function historyTitle(history: PointHistory): string {
+  const source = history.source;
+  if (source?.reason === 'MISSION_COMPLETED' && source.mission?.title) {
+    return source.mission.title;
+  }
+  return history.description;
+}
+
 export function matchesFilter(history: PointHistory, filter: HistoryFilter): boolean {
   if (filter === 'ALL') return true;
   if (filter === 'EARN') return history.type === 'EARN';

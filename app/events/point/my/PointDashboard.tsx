@@ -17,6 +17,7 @@ import {
   formatShortDate,
   formatTime,
   groupByDay,
+  historyTitle,
   matchesFilter,
   todayEarned,
   withRunningBalance,
@@ -191,28 +192,14 @@ export default function PointDashboard({
           )}
         </div>
 
-        {isEmpty ? (
-          <section className={styles.emptyCard}>
-            <h2 className={styles.emptyTitle}>아직 모은 포인트가 없어요</h2>
-            <p className={styles.emptyDescription}>
-              가게를 제보하고 리뷰를 남기면 포인트가 쌓여요!
-              <br />
-              응모 1회는 {ENTRY_COST}P부터 할 수 있어요.
-            </p>
-            <Link className={styles.softButton} href={`${POINT_EVENT_PATH}#earn`}>
-              포인트 모으는 법 보기
-            </Link>
-          </section>
-        ) : (
-          <p className={styles.announceBar}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/events/point/icons/bell.svg" width={18} height={18} alt="" />
-            <span>
-              당첨 발표는 <strong>{announceAt ? formatShortDate(announceAt) : '이벤트 종료 후'}</strong>에 앱
-              푸시로 알려드려요
-            </span>
-          </p>
-        )}
+        <p className={styles.announceBar}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/events/point/icons/bell.svg" width={18} height={18} alt="" />
+          <span>
+            당첨 발표는 <strong>{announceAt ? formatShortDate(announceAt) : '이벤트 종료 후'}</strong>에 앱
+            푸시로 알려드려요
+          </span>
+        </p>
 
         <section className={styles.prizeSection}>
           <div className={styles.blockTitle}>
@@ -337,7 +324,7 @@ function HistoryGroup({ day, rows }: { day: string; rows: HistoryRowModel[] }) {
           <div key={row.pointHistoryId} className={styles.historyRow}>
             <div className={styles.historyText}>
               <div className={styles.historyTitleRow}>
-                <p className={styles.historyTitle}>{revoked ? '포인트 회수' : row.description}</p>
+                <p className={styles.historyTitle}>{revoked ? '포인트 회수' : historyTitle(row)}</p>
                 {revoked && <span className={styles.revokeTag}>회수</span>}
               </div>
               <p className={styles.historyMeta}>
