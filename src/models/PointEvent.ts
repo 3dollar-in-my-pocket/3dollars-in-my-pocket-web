@@ -7,13 +7,16 @@ export type PointHistoryType = 'EARN' | 'REVOKE' | 'USE' | (string & {});
  * 모르는 reason 이 올 수 있으므로 화면은 description 으로 대신 표시한다.
  */
 export type PointHistorySource = {
-  reason: 'MISSION_COMPLETED' | (string & {});
+  reason: 'MISSION_COMPLETED' | 'RAFFLE_ENTERED' | (string & {});
   /** reason = MISSION_COMPLETED 일 때 */
   mission?: { missionId: string; title: string };
+  /** reason = RAFFLE_ENTERED 일 때 */
+  raffle?: { raffleId: string; title: string };
 };
 
 export type PointHistory = {
-  pointHistoryId: number;
+  /** 문자열 ID (숫자로 바꾸지 말 것) */
+  pointHistoryId: string;
   /** EARN: 적립, REVOKE: 회수, USE: 사용(응모). 모르는 값은 description 으로 표시 */
   type: PointHistoryType;
   description: string;
@@ -21,8 +24,12 @@ export type PointHistory = {
   amount: number;
   /** 출처를 찾지 못하면 null */
   source?: PointHistorySource | null;
+  /** KST LocalDateTime (yyyy-MM-ddTHH:mm:ss, 오프셋 없음) */
   createdAt: string;
 };
+
+/** 내역 조회 filterTypes 값 */
+export type PointHistoryFilterType = 'EARN' | 'USE' | 'REVOKE';
 
 export type PointHistoryPage = {
   contents: PointHistory[];
@@ -70,10 +77,33 @@ export type MissionGroupMissions = {
   missions: Mission[];
 };
 
-/** 경품별 내 응모 횟수 (TH-1610 응모 API) */
-export type PrizeEntryCount = {
-  prizeCode: string;
-  count: number;
+// ---------------------------------------------------------------------------
+// 응모 (GET /v1/raffles/{raffleTicket}, POST /v1/raffles/{raffleTicket}/{raffleId}/entries)
+// ---------------------------------------------------------------------------
+
+/** 응모 1회 비용. 비용 타입은 늘어날 수 있다. 모르는 타입이면 비용 표시만 비운다. */
+export type RaffleCost =
+  | { type: 'POINT'; pointTicket: string; amount: number }
+  | { type: string & {} };
+
+export type Raffle = {
+  /** 문자열 ID (숫자로 바꾸지 말 것) */
+  raffleId: string;
+  title: string;
+  description: string | null;
+  image: { imageUrl: string; width: number | null; height: number | null } | null;
+  /** null 이면 미정 → 추첨 인원 문구를 숨긴다 */
+  winnerCount: number | null;
+  cost: RaffleCost;
+  entry: {
+    enterable: boolean;
+    /** includeMy=true 일 때만 내려온다 (키 없음 = 미포함, 0 = 응모 없음) */
+    myEntryCount?: number;
+  };
+  /** KST LocalDateTime, 포함 */
+  startDateTime: string;
+  /** KST LocalDateTime, 미포함 */
+  endDateTime: string;
 };
 
 export type DeliveryForm = {

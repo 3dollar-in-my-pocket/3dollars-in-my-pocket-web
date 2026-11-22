@@ -2,28 +2,23 @@
 
 import Image from 'next/image';
 import { useEffect } from 'react';
-import { ENTRY_COST, type Prize } from '@/src/config/PointEvent';
-import { formatPoint } from '@/src/utils/pointEvent';
+import type { Raffle } from '@/src/models/PointEvent';
+import { formatPoint, myEntryCount, raffleCost } from '@/src/utils/pointEvent';
 import styles from '../point.module.css';
 
 type Props = {
-  prize: Prize;
+  raffle: Raffle;
   balance: number;
-  entryCount: number;
   submitting: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 };
 
 /** B-1. 응모 확인 바텀시트 */
-export default function EntrySheet({
-  prize,
-  balance,
-  entryCount,
-  submitting,
-  onCancel,
-  onConfirm,
-}: Props) {
+export default function EntrySheet({ raffle, balance, submitting, onCancel, onConfirm }: Props) {
+  const cost = raffleCost(raffle);
+  const entryCount = myEntryCount(raffle);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !submitting) onCancel();
@@ -44,24 +39,26 @@ export default function EntrySheet({
         <span className={styles.sheetHandle} aria-hidden />
         <div className={styles.sheetProduct}>
           <div className={styles.sheetImage}>
-            <Image src={prize.image} alt="" fill sizes="104px" />
+            {raffle.image && (
+              <Image src={raffle.image.imageUrl} alt="" fill sizes="104px" unoptimized />
+            )}
           </div>
           <h2 id="entry-sheet-title" className={styles.sheetTitle}>
-            {prize.name}에 응모할까요?
+            {raffle.title}에 응모할까요?
           </h2>
           <p className={styles.sheetSub}>
-            {prize.winnerCount}명을 추첨해요. 응모할수록 확률이 올라가요.
+            {raffle.winnerCount ? `${raffle.winnerCount}명을 추첨해요. ` : ''}응모할수록 확률이 올라가요.
           </p>
         </div>
 
         <div className={styles.calcBox}>
           <div className={styles.calcRow}>
             <span>사용할 포인트</span>
-            <strong>{formatPoint(ENTRY_COST)}</strong>
+            <strong>{cost === null ? '-' : formatPoint(cost)}</strong>
           </div>
           <div className={styles.calcRow}>
             <span>응모 후 남는 포인트</span>
-            <strong>{formatPoint(balance - ENTRY_COST)}</strong>
+            <strong>{cost === null ? '-' : formatPoint(balance - cost)}</strong>
           </div>
           <div className={styles.calcDivider} />
           <div className={styles.calcRow}>

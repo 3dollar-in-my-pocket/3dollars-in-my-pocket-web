@@ -12,7 +12,10 @@ export const MISSION_GROUP_CODE = 'goods-promotion';
 /** 당첨 결과 조회용 프로모션 코드 (GET /v1/promotion/{code}/my-result) */
 export const PROMOTION_CODE = 'GOODS_PROMOTION_2026';
 
-/** 응모 1회에 쓰는 포인트 */
+/** 응모 티켓 (GET /v1/raffles/{raffleTicket}) */
+export const RAFFLE_TICKET = 'GOODS_PROMOTION_2026';
+
+/** 응모 1회에 쓰는 포인트 — 이벤트 소개 페이지 문구용. 내 포인트 페이지는 서버 응모 목록의 cost 를 쓴다. */
 export const ENTRY_COST = 100;
 
 /**
@@ -33,8 +36,12 @@ export const POINT_EVENT_SCHEDULE: {
   shippingFrom: null,
 };
 
+/**
+ * 이벤트 소개 페이지·당첨 화면에 쓰는 경품 정보.
+ * 내 포인트 페이지의 응모 목록은 서버 응모 대상(GET /v1/raffles)을 쓴다. 어드민 값과 맞춰 둘 것.
+ */
 export type Prize = {
-  /** 응모 API 에 보내는 경품 코드 */
+  /** 당첨 결과(prizeCode)와 맞추는 경품 코드 */
   code: string;
   name: string;
   /** 토스트·미당첨 요약에 쓰는 짧은 이름 */

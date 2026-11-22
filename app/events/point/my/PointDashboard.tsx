@@ -3,14 +3,10 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { POINT_EVENT_PATH } from '@/src/config/PointEvent';
+import type { PointHistory, PointHistoryPage, Raffle } from '@/src/models/PointEvent';
 import {
-  ENTRY_COST,
-  POINT_EVENT_PATH,
-  PRIZES,
-  type Prize,
-} from '@/src/config/PointEvent';
-import type { PointHistoryPage, PrizeEntryCount } from '@/src/models/PointEvent';
-import {
+  createRequestKey,
   formatDayHeader,
   formatDday,
   formatPoint,
@@ -18,8 +14,8 @@ import {
   formatTime,
   groupByDay,
   historyTitle,
-  matchesFilter,
-  todayEarned,
+  myEntryCount,
+  raffleCost,
   withRunningBalance,
   type HistoryFilter,
   type HistoryRowModel,
@@ -30,12 +26,25 @@ import EntrySheet from './EntrySheet';
 type Props = {
   initialBalance: number;
   initialHistories: PointHistoryPage;
-  initialEntries: PrizeEntryCount[];
+  /** null 이면 응모 목록을 불러오지 못한 상태 */
+  initialRaffles: Raffle[] | null;
+  /** 오늘(KST) 포인트 순증감. null 이면 불러오지 못한 상태 */
+  initialTodayNet: number | null;
   endAt: string | null;
   announceAt: string | null;
 };
 
-type ApiBody<T> = { status: 'ok'; data: T } | { status: 'unauthorized' } | { status: 'error'; message?: string };
+type ApiBody<T> =
+  | { status: 'ok'; data: T }
+  | { status: 'unauthorized' }
+  | { status: 'error'; message?: string };
+
+type EntryBody =
+  | { status: 'ok' }
+  | { status: 'unauthorized' }
+  | { status: 'error'; retryable: boolean; code?: string; message?: string };
+
+type StatusData = { balance: number; todayNet: number | null; raffles: Raffle[] | null };
 
 const FILTERS: { value: HistoryFilter; label: string }[] = [
   { value: 'ALL', label: '전체' },
@@ -44,33 +53,67 @@ const FILTERS: { value: HistoryFilter; label: string }[] = [
 ];
 
 const EXPIRED_MESSAGE = '로그인이 만료됐어요. 앱에서 이 페이지를 다시 열어 주세요.';
+const NETWORK_MESSAGE = '인터넷 연결을 확인하고 다시 시도해 주세요.';
+/** 연결 실패·5xx 일 때 같은 requestKey 로 다시 보내는 횟수 (첫 요청 포함) */
+const ENTRY_ATTEMPTS = 3;
 
 async function requestJson<T>(input: string, init?: RequestInit): Promise<ApiBody<T>> {
   try {
     const response = await fetch(input, { credentials: 'same-origin', ...init });
     return (await response.json()) as ApiBody<T>;
   } catch {
-    return { status: 'error', message: '인터넷 연결을 확인하고 다시 시도해 주세요.' };
+    return { status: 'error', message: NETWORK_MESSAGE };
   }
+}
+
+/**
+ * 응모 1회. 탭 1번에 requestKey 1개를 만들고,
+ * 응답을 못 받았거나 5xx 면 같은 키로 다시 보낸다 (서버가 이미 처리했다면 409 → 성공).
+ */
+async function postEntry(raffleId: string): Promise<EntryBody> {
+  const requestKey = createRequestKey();
+  let last: EntryBody = { status: 'error', retryable: true };
+  for (let attempt = 0; attempt < ENTRY_ATTEMPTS; attempt++) {
+    if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+    try {
+      const response = await fetch('/api/events/point/entries', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ raffleId, requestKey }),
+      });
+      last = (await response.json()) as EntryBody;
+    } catch {
+      last = { status: 'error', retryable: true };
+    }
+    if (last.status !== 'error' || !last.retryable) return last;
+  }
+  return last;
 }
 
 export default function PointDashboard({
   initialBalance,
   initialHistories,
-  initialEntries,
+  initialRaffles,
+  initialTodayNet,
   endAt,
   announceAt,
 }: Props) {
   const [balance, setBalance] = useState(initialBalance);
-  const [histories, setHistories] = useState(initialHistories.contents);
+  const [todayNet, setTodayNet] = useState(initialTodayNet);
+  const [raffles, setRaffles] = useState(initialRaffles);
+  const [histories, setHistories] = useState<PointHistory[]>(initialHistories.contents);
   const [cursor, setCursor] = useState(initialHistories.cursor);
-  const [entries, setEntries] = useState(initialEntries);
   const [filter, setFilter] = useState<HistoryFilter>('ALL');
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [sheetPrize, setSheetPrize] = useState<Prize | null>(null);
+  const [hasAnyHistory, setHasAnyHistory] = useState(initialHistories.contents.length > 0);
+  const [sheetRaffleId, setSheetRaffleId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<{ message: string; success: boolean } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** 필터를 빠르게 바꿀 때 늦게 도착한 이전 응답을 버리기 위한 요청 번호 */
+  const historyRequest = useRef(0);
 
   useEffect(() => () => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -82,23 +125,49 @@ export default function PointDashboard({
     toastTimer.current = setTimeout(() => setToast(null), 2000);
   }, []);
 
-  const entryCount = (code: string) =>
-    entries.find((entry) => entry.prizeCode === code)?.count ?? 0;
-
-  const rows = useMemo(() => withRunningBalance(histories, balance), [histories, balance]);
-  const visibleGroups = useMemo(
-    () => groupByDay(rows.filter((row) => matchesFilter(row, filter))),
-    [rows, filter]
+  const rows = useMemo(
+    () => withRunningBalance(histories, balance, filter),
+    [histories, balance, filter]
   );
-  const isEmpty = balance === 0 && histories.length === 0;
+  const groups = useMemo(() => groupByDay(rows), [rows]);
+  const isEmpty = balance === 0 && !hasAnyHistory;
+  const sheetRaffle = raffles?.find((raffle) => raffle.raffleId === sheetRaffleId) ?? null;
+  const costs = new Set((raffles ?? []).map(raffleCost).filter((cost) => cost !== null));
+  const sameCost = costs.size === 1 ? [...costs][0] : null;
+
+  /** 필터 탭의 첫 페이지부터 다시 불러온다 (커서는 필터마다 따로라 이어 쓰면 항목이 빠진다) */
+  const loadHistories = async (nextFilter: HistoryFilter) => {
+    const requestId = ++historyRequest.current;
+    setHistoryLoading(true);
+    const body = await requestJson<PointHistoryPage>(`/api/events/point/histories?filter=${nextFilter}`);
+    if (requestId !== historyRequest.current) return;
+    setHistoryLoading(false);
+    if (body.status === 'ok') {
+      setHistories(body.data.contents);
+      setCursor(body.data.cursor);
+      if (nextFilter === 'ALL') setHasAnyHistory(body.data.contents.length > 0);
+    } else {
+      showToast(body.status === 'unauthorized' ? EXPIRED_MESSAGE : '내역을 불러오지 못했어요.', false);
+    }
+  };
+
+  const changeFilter = (nextFilter: HistoryFilter) => {
+    if (nextFilter === filter) return;
+    setFilter(nextFilter);
+    setHistories([]);
+    setCursor({ nextCursor: null, hasMore: false });
+    void loadHistories(nextFilter);
+  };
 
   const loadMore = async () => {
     if (!cursor.nextCursor || loadingMore) return;
+    const requestId = historyRequest.current;
     setLoadingMore(true);
     const body = await requestJson<PointHistoryPage>(
-      `/api/events/point/histories?cursor=${encodeURIComponent(cursor.nextCursor)}`
+      `/api/events/point/histories?filter=${filter}&cursor=${encodeURIComponent(cursor.nextCursor)}`
     );
     setLoadingMore(false);
+    if (requestId !== historyRequest.current) return;
     if (body.status === 'ok') {
       setHistories((prev) => prev.concat(body.data.contents));
       setCursor(body.data.cursor);
@@ -107,45 +176,45 @@ export default function PointDashboard({
     }
   };
 
-  const refreshHistories = async () => {
-    const body = await requestJson<PointHistoryPage>('/api/events/point/histories');
-    if (body.status === 'ok') {
-      setHistories(body.data.contents);
-      setCursor(body.data.cursor);
-    }
+  /** 잔액 · 오늘 증감 · 응모 목록 다시 조회. 갱신된 응모 목록을 돌려준다 */
+  const refreshStatus = async (): Promise<Raffle[] | null> => {
+    const body = await requestJson<StatusData>('/api/events/point/status');
+    if (body.status !== 'ok') return null;
+    setBalance(body.data.balance);
+    if (body.data.todayNet !== null) setTodayNet(body.data.todayNet);
+    if (body.data.raffles) setRaffles(body.data.raffles);
+    return body.data.raffles;
   };
 
-  const enter = async (prize: Prize) => {
+  const enter = async (raffle: Raffle) => {
     if (submitting) return;
     setSubmitting(true);
-    const body = await requestJson<{ prizeCode: string; count: number; balance: number }>(
-      '/api/events/point/entries',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prizeCode: prize.code }),
-      }
-    );
-    setSubmitting(false);
+    const result = await postEntry(raffle.raffleId);
 
-    if (body.status !== 'ok') {
-      showToast(
-        body.status === 'unauthorized'
-          ? EXPIRED_MESSAGE
-          : body.message ?? '응모하지 못했어요. 잠시 후 다시 시도해 주세요.',
-        false
-      );
+    if (result.status === 'unauthorized') {
+      setSubmitting(false);
+      showToast(EXPIRED_MESSAGE, false);
       return;
     }
 
-    setBalance(body.data.balance);
-    setEntries((prev) => [
-      ...prev.filter((entry) => entry.prizeCode !== prize.code),
-      { prizeCode: prize.code, count: body.data.count },
-    ]);
-    setSheetPrize(null);
-    showToast(`${prize.shortName} 응모 ${body.data.count}회째예요`, true);
-    void refreshHistories();
+    // 성공이든 실패든 서버 값으로 화면을 맞춘다 (목록은 최대 3분 캐시라 실패 원인이 화면과 다를 수 있다)
+    const [latest] = await Promise.all([refreshStatus(), loadHistories(filter)]);
+    setSubmitting(false);
+
+    if (result.status === 'ok') {
+      setSheetRaffleId(null);
+      const count =
+        latest?.find((item) => item.raffleId === raffle.raffleId)?.entry.myEntryCount ??
+        myEntryCount(raffle) + 1;
+      showToast(`${raffle.title} 응모 ${count}회째예요`, true);
+      return;
+    }
+
+    setSheetRaffleId(null);
+    showToast(
+      result.message ?? (result.retryable ? NETWORK_MESSAGE : '응모하지 못했어요. 잠시 후 다시 시도해 주세요.'),
+      false
+    );
   };
 
   return (
@@ -177,12 +246,12 @@ export default function PointDashboard({
               />
               <BalanceText balance={balance} />
               <div className={styles.summary}>
-                <div className={styles.summaryItem}>
-                  <span className={styles.summaryLabel}>오늘 적립</span>
-                  <span className={styles.summaryValue}>
-                    {formatPoint(todayEarned(histories), { signed: true })}
-                  </span>
-                </div>
+                {todayNet !== null && (
+                  <div className={styles.summaryItem}>
+                    <span className={styles.summaryLabel}>오늘 적립</span>
+                    <span className={styles.summaryValue}>{formatPoint(todayNet, { signed: true })}</span>
+                  </div>
+                )}
                 <div className={styles.summaryItem}>
                   <span className={styles.summaryLabel}>응모 마감까지</span>
                   <span className={styles.summaryValue}>{formatDday(endAt)}</span>
@@ -205,35 +274,48 @@ export default function PointDashboard({
           <div className={styles.blockTitle}>
             <h2 className={styles.blockHeading}>굿즈 응모</h2>
             <p className={styles.blockSub}>
-              응모 1회 {ENTRY_COST}P · 여러 번 응모할수록 당첨 확률이 올라가요
+              {sameCost !== null && `응모 1회 ${formatPoint(sameCost)} · `}여러 번 응모할수록 당첨 확률이
+              올라가요
             </p>
           </div>
-          {PRIZES.map((prize) => {
-            const count = entryCount(prize.code);
-            const affordable = balance >= ENTRY_COST;
-            return (
-              <article key={prize.code} className={styles.prizeRow}>
-                <div className={styles.thumb}>
-                  <Image src={prize.image} alt="" fill sizes="72px" />
-                </div>
-                <div className={styles.prizeRowText}>
-                  <h3 className={styles.prizeRowName}>{prize.name}</h3>
-                  <p className={styles.prizeRowWinners}>추첨 {prize.winnerCount}명</p>
-                  <span className={count > 0 ? styles.pill : `${styles.pill} ${styles.pillGray}`}>
-                    내 응모 {count}회
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  className={styles.rowButton}
-                  disabled={!affordable}
-                  onClick={() => setSheetPrize(prize)}
-                >
-                  {affordable ? '응모하기' : '포인트 부족'}
-                </button>
-              </article>
-            );
-          })}
+          {raffles === null ? (
+            <p className={styles.historyEmpty}>응모할 굿즈를 불러오지 못했어요.</p>
+          ) : raffles.length === 0 ? (
+            <p className={styles.historyEmpty}>지금 응모할 수 있는 굿즈가 없어요.</p>
+          ) : (
+            raffles.map((raffle) => {
+              const count = myEntryCount(raffle);
+              const cost = raffleCost(raffle);
+              const affordable = cost === null || balance >= cost;
+              const enterable = raffle.entry.enterable;
+              return (
+                <article key={raffle.raffleId} className={styles.prizeRow}>
+                  <div className={styles.thumb}>
+                    {raffle.image && (
+                      <Image src={raffle.image.imageUrl} alt="" fill sizes="72px" unoptimized />
+                    )}
+                  </div>
+                  <div className={styles.prizeRowText}>
+                    <h3 className={styles.prizeRowName}>{raffle.title}</h3>
+                    {raffle.winnerCount !== null && (
+                      <p className={styles.prizeRowWinners}>추첨 {raffle.winnerCount}명</p>
+                    )}
+                    <span className={count > 0 ? styles.pill : `${styles.pill} ${styles.pillGray}`}>
+                      내 응모 {count}회
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className={styles.rowButton}
+                    disabled={!enterable || !affordable}
+                    onClick={() => setSheetRaffleId(raffle.raffleId)}
+                  >
+                    {!enterable ? '응모 불가' : affordable ? '응모하기' : '포인트 부족'}
+                  </button>
+                </article>
+              );
+            })
+          )}
         </section>
 
         <div className={styles.divider} />
@@ -247,21 +329,23 @@ export default function PointDashboard({
                 type="button"
                 className={item.value === filter ? `${styles.chip} ${styles.chipSelected}` : styles.chip}
                 aria-pressed={item.value === filter}
-                onClick={() => setFilter(item.value)}
+                onClick={() => changeFilter(item.value)}
               >
                 {item.label}
               </button>
             ))}
           </div>
-          <div className={styles.historyList}>
-            {visibleGroups.length === 0 ? (
+          <div className={styles.historyList} aria-busy={historyLoading}>
+            {groups.length === 0 ? (
               <p className={styles.historyEmpty}>
-                {histories.length === 0 ? '아직 포인트 내역이 없어요.' : '해당하는 내역이 없어요.'}
+                {historyLoading
+                  ? '내역을 불러오는 중…'
+                  : filter === 'ALL'
+                    ? '아직 포인트 내역이 없어요.'
+                    : '해당하는 내역이 없어요.'}
               </p>
             ) : (
-              visibleGroups.map((group) => (
-                <HistoryGroup key={group.day} day={group.day} rows={group.rows} />
-              ))
+              groups.map((group) => <HistoryGroup key={group.day} day={group.day} rows={group.rows} />)
             )}
             {cursor.hasMore && cursor.nextCursor && (
               <button type="button" className={styles.moreButton} onClick={loadMore} disabled={loadingMore}>
@@ -272,14 +356,13 @@ export default function PointDashboard({
         </section>
       </div>
 
-      {sheetPrize && (
+      {sheetRaffle && (
         <EntrySheet
-          prize={sheetPrize}
+          raffle={sheetRaffle}
           balance={balance}
-          entryCount={entryCount(sheetPrize.code)}
           submitting={submitting}
-          onCancel={() => setSheetPrize(null)}
-          onConfirm={() => enter(sheetPrize)}
+          onCancel={() => setSheetRaffleId(null)}
+          onConfirm={() => enter(sheetRaffle)}
         />
       )}
 
@@ -334,7 +417,9 @@ function HistoryGroup({ day, rows }: { day: string; rows: HistoryRowModel[] }) {
             </div>
             <div className={styles.historyAmount}>
               <span className={amountClass}>{formatPoint(row.amount, { signed: true })}</span>
-              <span className={styles.historyBalance}>잔액 {formatPoint(row.balanceAfter)}</span>
+              {row.balanceAfter !== null && (
+                <span className={styles.historyBalance}>잔액 {formatPoint(row.balanceAfter)}</span>
+              )}
             </div>
           </div>
         );

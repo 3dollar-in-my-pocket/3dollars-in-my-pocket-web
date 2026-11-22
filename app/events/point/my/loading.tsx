@@ -1,9 +1,7 @@
-import Image from 'next/image';
-import { PRIZES } from '@/src/config/PointEvent';
 import Skeleton from '../_components/Skeleton';
 import styles from '../point.module.css';
 
-/** 내 포인트 로딩 화면 — 고정 정보(제목·경품)는 그대로 보여주고 내 데이터 자리만 비워 둔다. */
+/** 내 포인트 로딩 화면 — 고정 정보(제목)는 그대로 보여주고 서버 데이터 자리만 비워 둔다. */
 export default function MyPointLoading() {
   return (
     <main className={styles.page} aria-busy="true">
@@ -31,14 +29,13 @@ export default function MyPointLoading() {
           <div className={styles.blockTitle}>
             <h2 className={styles.blockHeading}>굿즈 응모</h2>
           </div>
-          {PRIZES.map((prize) => (
-            <article key={prize.code} className={styles.prizeRow}>
-              <div className={styles.thumb}>
-                <Image src={prize.image} alt="" fill sizes="72px" />
-              </div>
+          {/* 응모 굿즈는 서버 응모 목록에서 오므로 이름·인원도 비워 둔다 */}
+          {[0, 1].map((index) => (
+            <article key={index} className={styles.prizeRow}>
+              <Skeleton width={72} height={72} radius={14} />
               <div className={styles.prizeRowText}>
-                <h3 className={styles.prizeRowName}>{prize.name}</h3>
-                <p className={styles.prizeRowWinners}>추첨 {prize.winnerCount}명</p>
+                <Skeleton width={120} height={18} />
+                <Skeleton width={64} height={16} />
               </div>
               <Skeleton width={72} height={36} radius={12} className={styles.skeletonButton} />
             </article>
