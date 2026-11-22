@@ -8,6 +8,7 @@ import {
 import type {
   DeliveryForm,
   MissionGroupMissions,
+  PointChange,
   PointHistoryFilterType,
   PointHistoryPage,
   Raffle,
@@ -60,14 +61,14 @@ export function fetchMyPromotionResult({ token, userAgent }: Auth) {
 }
 
 /**
- * 기간별 포인트 순증감 (적립 − 사용·회수). 음수일 수 있다.
+ * 기간별 포인트 증감 (increaseAmount 증가분, decreaseAmount 감소분, netAmount 순증감).
  * start 포함, end 미포함, KST LocalDateTime, 최대 7일.
  */
 export function fetchPointChange(
   { token, userAgent }: Auth,
   { start, end }: { start: string; end: string }
 ) {
-  return requestWithToken<{ netAmount: number }>(`${ticketPath}/changes`, {
+  return requestWithToken<PointChange>(`${ticketPath}/changes`, {
     token,
     userAgent,
     searchParams: new URLSearchParams({ startDateTime: start, endDateTime: end }),

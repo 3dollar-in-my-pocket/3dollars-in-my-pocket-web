@@ -31,6 +31,13 @@ export type PointHistory = {
 /** 내역 조회 filterTypes 값 */
 export type PointHistoryFilterType = 'EARN' | 'USE' | 'REVOKE';
 
+/** 기간 내 포인트 증감 (/changes). increaseAmount 는 구버전 서버에 없을 수 있다 */
+export type PointChange = {
+  netAmount: number;
+  increaseAmount?: number;
+  decreaseAmount?: number;
+};
+
 export type PointHistoryPage = {
   contents: PointHistory[];
   cursor: { nextCursor: string | null; hasMore: boolean };

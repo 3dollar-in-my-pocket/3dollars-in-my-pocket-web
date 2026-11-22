@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { readRequestAuth } from '@/src/server/authorizedApi';
 import { fetchMyRaffles, fetchPointBalance, fetchPointChange } from '@/src/server/pointEvent';
 import { unauthorizedResponse } from '@/src/server/routeResponse';
-import { kstTodayRange } from '@/src/utils/pointEvent';
+import { earnedAmount, kstTodayRange } from '@/src/utils/pointEvent';
 
 /**
- * 응모 뒤 화면 갱신용: 잔액 · 오늘 증감 · 응모 목록(내 응모 횟수 포함).
+ * 응모 뒤 화면 갱신용: 잔액 · 오늘 적립 · 응모 목록(내 응모 횟수 포함).
  * 잔액만 필수이고 나머지는 실패하면 null 로 내려 기존 값을 유지하게 한다.
  */
 export async function GET(request: NextRequest) {
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     status: 'ok',
     data: {
       balance: balance.data.balance,
-      todayNet: change.status === 'ok' ? change.data.netAmount : null,
+      todayEarned: change.status === 'ok' ? earnedAmount(change.data) : null,
       raffles: raffles.status === 'ok' ? raffles.data.contents : null,
     },
   });

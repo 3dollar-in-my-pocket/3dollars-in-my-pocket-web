@@ -27,7 +27,7 @@ type Props = {
   /** null 이면 응모 목록을 불러오지 못한 상태 */
   initialRaffles: Raffle[] | null;
   /** 오늘(KST) 포인트 순증감. null 이면 불러오지 못한 상태 */
-  initialTodayNet: number | null;
+  initialTodayEarned: number | null;
   endAt: string | null;
   announceAt: string | null;
 };
@@ -42,7 +42,7 @@ type EntryBody =
   | { status: 'unauthorized' }
   | { status: 'error'; retryable: boolean; code?: string; message?: string };
 
-type StatusData = { balance: number; todayNet: number | null; raffles: Raffle[] | null };
+type StatusData = { balance: number; todayEarned: number | null; raffles: Raffle[] | null };
 
 const FILTERS: { value: HistoryFilter; label: string }[] = [
   { value: 'ALL', label: '전체' },
@@ -93,12 +93,12 @@ export default function PointDashboard({
   initialBalance,
   initialHistories,
   initialRaffles,
-  initialTodayNet,
+  initialTodayEarned,
   endAt,
   announceAt,
 }: Props) {
   const [balance, setBalance] = useState(initialBalance);
-  const [todayNet, setTodayNet] = useState(initialTodayNet);
+  const [todayEarned, setTodayEarned] = useState(initialTodayEarned);
   const [raffles, setRaffles] = useState(initialRaffles);
   const [histories, setHistories] = useState<PointHistory[]>(initialHistories.contents);
   const [cursor, setCursor] = useState(initialHistories.cursor);
@@ -170,12 +170,12 @@ export default function PointDashboard({
     }
   };
 
-  /** 잔액 · 오늘 증감 · 응모 목록 다시 조회. 갱신된 응모 목록을 돌려준다 */
+  /** 잔액 · 오늘 적립 · 응모 목록 다시 조회. 갱신된 응모 목록을 돌려준다 */
   const refreshStatus = async (): Promise<Raffle[] | null> => {
     const body = await requestJson<StatusData>('/api/events/point/status');
     if (body.status !== 'ok') return null;
     setBalance(body.data.balance);
-    if (body.data.todayNet !== null) setTodayNet(body.data.todayNet);
+    if (body.data.todayEarned !== null) setTodayEarned(body.data.todayEarned);
     if (body.data.raffles) setRaffles(body.data.raffles);
     return body.data.raffles;
   };
@@ -240,10 +240,10 @@ export default function PointDashboard({
               />
               <BalanceText balance={balance} />
               <div className={styles.summary}>
-                {todayNet !== null && (
+                {todayEarned !== null && (
                   <div className={styles.summaryItem}>
                     <span className={styles.summaryLabel}>오늘 적립</span>
-                    <span className={styles.summaryValue}>{formatPoint(todayNet, { signed: true })}</span>
+                    <span className={styles.summaryValue}>{formatPoint(todayEarned, { signed: true })}</span>
                   </div>
                 )}
                 <div className={styles.summaryItem}>

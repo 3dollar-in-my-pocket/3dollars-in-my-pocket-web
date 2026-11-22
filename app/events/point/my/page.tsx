@@ -14,7 +14,7 @@ import {
   fetchPointChange,
   fetchPointHistories,
 } from '@/src/server/pointEvent';
-import { isPast, kstTodayRange, parseDate } from '@/src/utils/pointEvent';
+import { earnedAmount, isPast, kstTodayRange, parseDate } from '@/src/utils/pointEvent';
 import {
   ErrorScreen,
   LoserScreen,
@@ -57,9 +57,9 @@ export default async function MyPointPage() {
   }
   if (balance.status !== 'ok' || histories.status !== 'ok') return <ErrorScreen />;
 
-  // 응모 목록·오늘 증감은 실패해도 페이지는 보여준다 (응모 영역만 오류 문구, 오늘 증감은 숨김).
+  // 응모 목록·오늘 적립은 실패해도 페이지는 보여준다 (응모 영역만 오류 문구, 오늘 적립은 숨김).
   const raffleList = raffles.status === 'ok' ? raffles.data.contents : null;
-  const todayNet = todayChange.status === 'ok' ? todayChange.data.netAmount : null;
+  const todayEarned = todayChange.status === 'ok' ? earnedAmount(todayChange.data) : null;
   // 응모 마감: 설정 값이 우선, 없으면 응모 대상 중 가장 늦은 종료 일시(미포함)
   const raffleEnd = raffleList
     ?.map((raffle) => raffle.endDateTime)
@@ -99,7 +99,7 @@ export default async function MyPointPage() {
       initialBalance={balance.data.balance}
       initialHistories={histories.data}
       initialRaffles={raffleList}
-      initialTodayNet={todayNet}
+      initialTodayEarned={todayEarned}
       endAt={endAt}
       announceAt={POINT_EVENT_SCHEDULE.announceAt}
     />

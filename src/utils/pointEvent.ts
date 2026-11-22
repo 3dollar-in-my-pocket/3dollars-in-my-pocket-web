@@ -3,6 +3,7 @@ import type {
   DeliveryForm,
   Mission,
   MissionActivityType,
+  PointChange,
   PointHistory,
   PointHistoryFilterType,
   Raffle,
@@ -33,6 +34,11 @@ export function kstTodayRange(now = new Date()): { start: string; end: string } 
   const start = `${kstDateKey(now)}T00:00:00`;
   const end = toKstLocalDateTime(new Date(parseDate(start).getTime() + DAY_MS));
   return { start, end };
+}
+
+/** 오늘 적립 = 기간 내 증가분. 구버전 서버라 increaseAmount 가 없으면 0 */
+export function earnedAmount(change: PointChange): number {
+  return typeof change.increaseAmount === 'number' ? change.increaseAmount : 0;
 }
 
 export function formatPoint(value: number, { signed = false } = {}): string {
