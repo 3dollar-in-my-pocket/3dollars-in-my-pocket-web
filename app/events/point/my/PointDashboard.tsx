@@ -16,9 +16,7 @@ import {
   historyTitle,
   myEntryCount,
   raffleCost,
-  withRunningBalance,
   type HistoryFilter,
-  type HistoryRowModel,
 } from '@/src/utils/pointEvent';
 import styles from '../point.module.css';
 import EntrySheet from './EntrySheet';
@@ -125,11 +123,7 @@ export default function PointDashboard({
     toastTimer.current = setTimeout(() => setToast(null), 2000);
   }, []);
 
-  const rows = useMemo(
-    () => withRunningBalance(histories, balance, filter),
-    [histories, balance, filter]
-  );
-  const groups = useMemo(() => groupByDay(rows), [rows]);
+  const groups = useMemo(() => groupByDay(histories), [histories]);
   const isEmpty = balance === 0 && !hasAnyHistory;
   const sheetRaffle = raffles?.find((raffle) => raffle.raffleId === sheetRaffleId) ?? null;
   const costs = new Set((raffles ?? []).map(raffleCost).filter((cost) => cost !== null));
@@ -391,7 +385,7 @@ function BalanceText({ balance }: { balance: number }) {
   );
 }
 
-function HistoryGroup({ day, rows }: { day: string; rows: HistoryRowModel[] }) {
+function HistoryGroup({ day, rows }: { day: string; rows: PointHistory[] }) {
   return (
     <>
       <h3 className={styles.dayHeader}>{formatDayHeader(day)}</h3>
@@ -417,9 +411,6 @@ function HistoryGroup({ day, rows }: { day: string; rows: HistoryRowModel[] }) {
             </div>
             <div className={styles.historyAmount}>
               <span className={amountClass}>{formatPoint(row.amount, { signed: true })}</span>
-              {row.balanceAfter !== null && (
-                <span className={styles.historyBalance}>잔액 {formatPoint(row.balanceAfter)}</span>
-              )}
             </div>
           </div>
         );

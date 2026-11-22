@@ -156,29 +156,6 @@ export const HISTORY_FILTER_TYPES: Record<HistoryFilter, PointHistoryFilterType[
   SPEND: ['USE', 'REVOKE'],
 };
 
-export type HistoryRowModel = PointHistory & {
-  /** 이 내역 직후 잔액. 전체 탭에서만 계산할 수 있다 */
-  balanceAfter: number | null;
-};
-
-/**
- * 최신순 '전체' 내역에 현재 잔액부터 거꾸로 계산한 '직후 잔액'을 붙인다.
- * 필터 탭은 빠진 내역이 있어 계산이 틀리므로 null.
- */
-export function withRunningBalance(
-  histories: PointHistory[],
-  currentBalance: number,
-  filter: HistoryFilter
-): HistoryRowModel[] {
-  if (filter !== 'ALL') return histories.map((history) => ({ ...history, balanceAfter: null }));
-  let balance = currentBalance;
-  return histories.map((history) => {
-    const row = { ...history, balanceAfter: balance };
-    balance -= history.amount;
-    return row;
-  });
-}
-
 export function parseHistoryFilter(value: string | null): HistoryFilter {
   return value === 'EARN' || value === 'SPEND' ? value : 'ALL';
 }
