@@ -1,16 +1,17 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
-import {
-  ENTRY_COST,
-  POINT_EVENT_MY_PATH,
-  POINT_EVENT_SCHEDULE,
-  PRIZES,
-} from '@/src/config/PointEvent';
-import type { MissionGroupMissions } from '@/src/models/PointEvent';
+import { POINT_EVENT_MY_PATH, POINT_EVENT_SCHEDULE } from '@/src/config/PointEvent';
+import type { MissionGroupMissions, Raffle } from '@/src/models/PointEvent';
 import { readPageAuth } from '@/src/server/authorizedApi';
-import { fetchMissions } from '@/src/server/pointEvent';
-import { formatDday, formatShortDate, isPast } from '@/src/utils/pointEvent';
+import { fetchMissions, fetchRaffles } from '@/src/server/pointEvent';
+import {
+  formatDday,
+  formatPoint,
+  formatShortDate,
+  isPast,
+  sharedRaffleCost,
+} from '@/src/utils/pointEvent';
 import EarnTable from './_components/EarnTable';
 import SectionHeader from './_components/SectionHeader';
 import styles from './point.module.css';
@@ -38,11 +39,16 @@ type MissionState =
   | { status: 'no-token' }
   | { status: 'error' };
 
-async function loadMissions(): Promise<MissionState> {
-  const { token, userAgent } = await readPageAuth();
+async function loadMissions(token: string | null, userAgent: string | null): Promise<MissionState> {
   if (!token) return { status: 'no-token' };
   const result = await fetchMissions({ token, userAgent });
   return result.status === 'ok' ? { status: 'ok', data: result.data } : { status: 'error' };
+}
+
+/** 경품 카드용 응모 대상 목록 (로그인 없이). 실패하면 null */
+async function loadRaffles(userAgent: string | null): Promise<Raffle[] | null> {
+  const result = await fetchRaffles({ userAgent });
+  return result.status === 'ok' ? result.data.contents : null;
 }
 
 function currentStep(endAt: string | null): number {
@@ -54,7 +60,12 @@ function currentStep(endAt: string | null): number {
 }
 
 export default async function PointEventPage() {
-  const missionState = await loadMissions();
+  const { token, userAgent } = await readPageAuth();
+  const [missionState, raffles] = await Promise.all([
+    loadMissions(token, userAgent),
+    loadRaffles(userAgent),
+  ]);
+  const entryCost = sharedRaffleCost(raffles);
   const missionGroup = missionState.status === 'ok' ? missionState.data : null;
   const startAt = POINT_EVENT_SCHEDULE.startAt ?? missionGroup?.group.startDateTime ?? null;
   const endAt = POINT_EVENT_SCHEDULE.endAt ?? missionGroup?.group.endDateTime ?? null;
@@ -133,23 +144,44 @@ export default async function PointEventPage() {
           </div>
         </section>
 
-        <section className={styles.section}>
-          <SectionHeader kicker="경품" title="붕어빵 킹 경품" />
-          <div className={styles.prizeGrid}>
-            {PRIZES.map((prize) => (
-              <article key={prize.code} className={styles.prizeCard}>
-                <div className={styles.prizeImage}>
-                  <Image src={prize.image} alt={prize.name} fill sizes="(max-width: 480px) 40vw, 180px" />
-                </div>
-                <div className={styles.prizeText}>
-                  <h3 className={styles.prizeName}>{prize.name}</h3>
-                  <p className={styles.prizeDescription}>{prize.description}</p>
-                  <span className={styles.pill}>추첨 {prize.winnerCount}명</span>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
+        {/* 경품은 서버 응모 대상 목록으로 그린다. 못 불러오면 안내 문구, 비어 있으면 영역을 숨긴다. */}
+        {raffles?.length !== 0 && (
+          <section className={styles.section}>
+            <SectionHeader kicker="경품" title="붕어빵 킹 경품" />
+            {raffles === null ? (
+              <p className={styles.prizeFallback}>
+                경품 정보를 불러오지 못했어요. 잠시 후 다시 확인해 주세요.
+              </p>
+            ) : (
+              <div className={styles.prizeGrid}>
+                {raffles.map((raffle) => (
+                  <article key={raffle.raffleId} className={styles.prizeCard}>
+                    <div className={styles.prizeImage}>
+                      {raffle.image && (
+                        <Image
+                          src={raffle.image.imageUrl}
+                          alt={raffle.title}
+                          fill
+                          sizes="(max-width: 480px) 40vw, 180px"
+                          unoptimized
+                        />
+                      )}
+                    </div>
+                    <div className={styles.prizeText}>
+                      <h3 className={styles.prizeName}>{raffle.title}</h3>
+                      {raffle.description && (
+                        <p className={styles.prizeDescription}>{raffle.description}</p>
+                      )}
+                      {raffle.winnerCount !== null && (
+                        <span className={styles.pill}>추첨 {raffle.winnerCount}명</span>
+                      )}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
         <section className={`${styles.section} ${styles.sectionGray}`}>
           <SectionHeader kicker="참여 방법" title="세 단계면 끝나요" />
@@ -161,7 +193,7 @@ export default async function PointEventPage() {
               },
               {
                 title: '모은 포인트로 응모하기',
-                description: `응모 1회에 ${ENTRY_COST}P를 써요. 여러 번 응모할수록 당첨 확률이 올라가요.`,
+                description: `${entryCost !== null ? `응모 1회에 ${formatPoint(entryCost)}를 써요. ` : ''}여러 번 응모할수록 당첨 확률이 올라가요.`,
               },
               {
                 title: '당첨 발표 확인하기',

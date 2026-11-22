@@ -236,6 +236,18 @@
   aspect-ratio: 135 / 137;
   border-radius: 14px;
   overflow: hidden;
+  background: var(--gray-10);
+}
+
+.prizeFallback {
+  margin: 0;
+  padding: 20px 16px;
+  border-radius: 16px;
+  background: var(--gray-5);
+  color: var(--gray-60);
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: center;
 }
 
 .prizeImage img,

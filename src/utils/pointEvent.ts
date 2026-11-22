@@ -203,6 +203,13 @@ export function raffleCost(raffle: Raffle): number | null {
   return raffle.cost.type === 'POINT' && 'amount' in raffle.cost ? raffle.cost.amount : null;
 }
 
+/** 모든 응모 대상의 응모 비용이 같으면 그 값, 다르거나 모르면 null (안내 문구용) */
+export function sharedRaffleCost(raffles: Raffle[] | null): number | null {
+  const costs = new Set((raffles ?? []).map(raffleCost));
+  const [only] = [...costs];
+  return costs.size === 1 && typeof only === 'number' ? only : null;
+}
+
 export function myEntryCount(raffle: Raffle): number {
   return raffle.entry.myEntryCount ?? 0;
 }

@@ -77,6 +77,11 @@ export function fetchPointChange(
 
 const rafflePath = `/api/v1/raffles/${encodeURIComponent(RAFFLE_TICKET)}`;
 
+/** 응모 대상 목록 — 로그인 없이 부른다 (이벤트 소개 페이지 경품 카드) */
+export function fetchRaffles({ userAgent }: { userAgent: string | null }) {
+  return requestWithToken<{ contents: Raffle[] }>(rafflePath, { token: null, userAgent });
+}
+
 /** 응모 대상 목록 + 내 응모 횟수 (includeMy=true 라 로그인 필수) */
 export function fetchMyRaffles({ token, userAgent }: Auth) {
   return requestWithToken<{ contents: Raffle[] }>(rafflePath, {

@@ -16,6 +16,7 @@ import {
   historyTitle,
   myEntryCount,
   raffleCost,
+  sharedRaffleCost,
   type HistoryFilter,
 } from '@/src/utils/pointEvent';
 import styles from '../point.module.css';
@@ -126,8 +127,7 @@ export default function PointDashboard({
   const groups = useMemo(() => groupByDay(histories), [histories]);
   const isEmpty = balance === 0 && !hasAnyHistory;
   const sheetRaffle = raffles?.find((raffle) => raffle.raffleId === sheetRaffleId) ?? null;
-  const costs = new Set((raffles ?? []).map(raffleCost).filter((cost) => cost !== null));
-  const sameCost = costs.size === 1 ? [...costs][0] : null;
+  const sameCost = sharedRaffleCost(raffles);
 
   /** 필터 탭의 첫 페이지부터 다시 불러온다 (커서는 필터마다 따로라 이어 쓰면 항목이 빠진다) */
   const loadHistories = async (nextFilter: HistoryFilter) => {

@@ -26,7 +26,8 @@ type ApiEnvelope<T> = {
 
 type RequestOptions = {
   method?: 'GET' | 'POST';
-  token: string;
+  /** null 이면 Authorization 없이 부른다 (로그인 없이 보는 공개 API) */
+  token: string | null;
   userAgent: string | null;
   searchParams?: URLSearchParams;
   body?: unknown;
@@ -45,7 +46,7 @@ export async function requestWithToken<T>(
       method,
       headers: {
         'Content-Type': 'application/json',
-        Authorization: token,
+        ...(token ? { Authorization: token } : {}),
         ...(userAgent ? { 'User-Agent': userAgent } : {}),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
