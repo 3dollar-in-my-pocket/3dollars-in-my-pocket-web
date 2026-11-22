@@ -144,7 +144,9 @@ export default function Home() {
   const loadingMoreRef = useRef(false);
   const listGenerationRef = useRef(0);
   const previewOpenRef = useRef(false);
-  filterRef.current = filter;
+  useEffect(() => {
+    filterRef.current = filter;
+  }, [filter]);
 
   // 앱으로 이동 (딥링크).
   const openApp = (card: HomeListBasicCard) => {
