@@ -951,47 +951,6 @@
   color: var(--gray-60);
 }
 
-/* ---------- 빈 상태 (포인트 0) ---------- */
-
-.emptyCard {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  margin: 12px 20px 0;
-  padding: 20px;
-  border: 1.5px dashed var(--pink-200);
-  border-radius: 18px;
-  text-align: center;
-}
-
-.emptyTitle {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 19px;
-}
-
-.emptyDescription {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.55;
-  color: var(--gray-60);
-}
-
-.softButton {
-  display: flex;
-  align-items: center;
-  height: 44px;
-  padding: 0 18px;
-  border-radius: 12px;
-  background: var(--pink-50);
-  color: var(--pink-text);
-  font-size: 15px;
-  font-weight: 700;
-  text-decoration: none;
-}
-
 /* ---------- 상태 카드 (토큰 없음 · 미당첨 · 에러) ---------- */
 
 .stateWrap {
