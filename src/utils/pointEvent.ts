@@ -3,11 +3,43 @@ import type {
   DeliveryForm,
   Mission,
   MissionActivityType,
+  PointChange,
   PointHistory,
+  PointHistoryFilterType,
+  Raffle,
 } from '@/src/models/PointEvent';
 
 const KST = 'Asia/Seoul';
 const DAY_MS = 24 * 60 * 60 * 1000;
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
+/**
+ * 서버 일시(오프셋 없는 KST LocalDateTime, 예: 2026-12-03T14:20:11)와
+ * 설정 값(오프셋 있는 ISO 8601)을 모두 받아 Date 로 바꾼다.
+ * 오프셋이 없으면 KST 로 본다 — 서버 렌더링(UTC)에서도 시각이 밀리지 않게.
+ */
+export function parseDate(value: string | Date): Date {
+  if (value instanceof Date) return value;
+  const hasZone = /(Z|[+-]\d{2}:?\d{2})$/i.test(value);
+  return new Date(hasZone || !value.includes('T') ? value : `${value}+09:00`);
+}
+
+/** Date → KST LocalDateTime 문자열 (yyyy-MM-ddTHH:mm:ss) */
+export function toKstLocalDateTime(date: Date): string {
+  return new Date(date.getTime() + KST_OFFSET_MS).toISOString().slice(0, 19);
+}
+
+/** 오늘(KST) 00:00 ~ 내일 00:00 — /changes 조회 범위 */
+export function kstTodayRange(now = new Date()): { start: string; end: string } {
+  const start = `${kstDateKey(now)}T00:00:00`;
+  const end = toKstLocalDateTime(new Date(parseDate(start).getTime() + DAY_MS));
+  return { start, end };
+}
+
+/** 오늘 적립 = 기간 내 증가분. 구버전 서버라 increaseAmount 가 없으면 0 */
+export function earnedAmount(change: PointChange): number {
+  return typeof change.increaseAmount === 'number' ? change.increaseAmount : 0;
+}
 
 export function formatPoint(value: number, { signed = false } = {}): string {
   const abs = Math.abs(value).toLocaleString('ko-KR');
@@ -22,7 +54,7 @@ export function kstDateKey(iso: string | Date): string {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  }).format(typeof iso === 'string' ? new Date(iso) : iso);
+  }).format(parseDate(iso));
 }
 
 /** 11월 15일 토요일 */
@@ -32,7 +64,7 @@ export function formatDayHeader(iso: string): string {
     month: 'long',
     day: 'numeric',
     weekday: 'long',
-  }).format(new Date(iso));
+  }).format(parseDate(iso));
 }
 
 /** 오후 2:10 */
@@ -41,13 +73,13 @@ export function formatTime(iso: string): string {
     timeZone: KST,
     hour: 'numeric',
     minute: '2-digit',
-  }).format(new Date(iso));
+  }).format(parseDate(iso));
 }
 
 /** 11월 15일(토) — null 이면 '추후 안내' */
 export function formatShortDate(iso: string | null | undefined): string {
   if (!iso) return '추후 안내';
-  const date = new Date(iso);
+  const date = parseDate(iso);
   const monthDay = new Intl.DateTimeFormat('ko-KR', {
     timeZone: KST,
     month: 'long',
@@ -77,7 +109,7 @@ export function formatDday(iso: string | null | undefined, now = new Date()): st
 }
 
 export function isPast(iso: string | null | undefined, now = new Date()): boolean {
-  return Boolean(iso) && Date.parse(iso as string) <= now.getTime();
+  return Boolean(iso) && parseDate(iso as string).getTime() <= now.getTime();
 }
 
 // ---------------------------------------------------------------------------
@@ -123,40 +155,32 @@ export function isMissionDone(mission: Mission): boolean {
 
 export type HistoryFilter = 'ALL' | 'EARN' | 'SPEND';
 
-export type HistoryRowModel = PointHistory & {
-  /** 이 내역 직후 잔액 */
-  balanceAfter: number;
+/** 필터 탭 → 서버 filterTypes. 서버에는 '사용·회수' 같은 묶음 값이 없어 클라이언트가 조합한다. */
+export const HISTORY_FILTER_TYPES: Record<HistoryFilter, PointHistoryFilterType[]> = {
+  ALL: [],
+  EARN: ['EARN'],
+  SPEND: ['USE', 'REVOKE'],
 };
 
-/** 최신순 내역에 현재 잔액부터 거꾸로 계산한 '직후 잔액'을 붙인다. */
-export function withRunningBalance(
-  histories: PointHistory[],
-  currentBalance: number
-): HistoryRowModel[] {
-  let balance = currentBalance;
-  return histories.map((history) => {
-    const row = { ...history, balanceAfter: balance };
-    balance -= history.amount;
-    return row;
-  });
+export function parseHistoryFilter(value: string | null): HistoryFilter {
+  return value === 'EARN' || value === 'SPEND' ? value : 'ALL';
 }
 
 /**
- * 내역 제목. 미션 적립은 미션 이름(예: '가게 방문')을 쓰고,
- * 출처가 없거나 모르는 출처면 서버 description('미션 완료' 등)을 쓴다.
+ * 내역 제목.
+ * - 미션 적립: 미션 이름 (예: '가게 방문')
+ * - 응모: '{응모 대상} 응모'
+ * - 출처가 없거나 모르는 출처: 서버 description ('미션 완료', '응모' 등)
  */
 export function historyTitle(history: PointHistory): string {
   const source = history.source;
   if (source?.reason === 'MISSION_COMPLETED' && source.mission?.title) {
     return source.mission.title;
   }
+  if (source?.reason === 'RAFFLE_ENTERED' && source.raffle?.title) {
+    return `${source.raffle.title} 응모`;
+  }
   return history.description;
-}
-
-export function matchesFilter(history: PointHistory, filter: HistoryFilter): boolean {
-  if (filter === 'ALL') return true;
-  if (filter === 'EARN') return history.type === 'EARN';
-  return history.type !== 'EARN';
 }
 
 export function groupByDay<T extends PointHistory>(rows: T[]): { day: string; rows: T[] }[] {
@@ -170,12 +194,43 @@ export function groupByDay<T extends PointHistory>(rows: T[]): { day: string; ro
   return groups;
 }
 
-/** 오늘(KST) 적립 합계 */
-export function todayEarned(histories: PointHistory[], now = new Date()): number {
-  const today = kstDateKey(now);
-  return histories
-    .filter((history) => history.type === 'EARN' && kstDateKey(history.createdAt) === today)
-    .reduce((sum, history) => sum + history.amount, 0);
+// ---------------------------------------------------------------------------
+// 응모
+// ---------------------------------------------------------------------------
+
+/** 응모 1회 포인트. 모르는 비용 타입이면 null (비용 표시만 비운다) */
+export function raffleCost(raffle: Raffle): number | null {
+  return raffle.cost.type === 'POINT' && 'amount' in raffle.cost ? raffle.cost.amount : null;
+}
+
+/** 모든 응모 대상의 응모 비용이 같으면 그 값, 다르거나 모르면 null (안내 문구용) */
+export function sharedRaffleCost(raffles: Raffle[] | null): number | null {
+  const costs = new Set((raffles ?? []).map(raffleCost));
+  const [only] = [...costs];
+  return costs.size === 1 && typeof only === 'number' ? only : null;
+}
+
+export function myEntryCount(raffle: Raffle): number {
+  return raffle.entry.myEntryCount ?? 0;
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isUuid(value: unknown): value is string {
+  return typeof value === 'string' && UUID_PATTERN.test(value);
+}
+
+/** 응모 requestKey 용 UUID v4 */
+export function createRequestKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 // ---------------------------------------------------------------------------

@@ -12,8 +12,8 @@ export const MISSION_GROUP_CODE = 'goods-promotion';
 /** 당첨 결과 조회용 프로모션 코드 (GET /v1/promotion/{code}/my-result) */
 export const PROMOTION_CODE = 'GOODS_PROMOTION_2026';
 
-/** 응모 1회에 쓰는 포인트 */
-export const ENTRY_COST = 100;
+/** 응모 티켓 (GET /v1/raffles/{raffleTicket}) */
+export const RAFFLE_TICKET = 'GOODS_PROMOTION_2026';
 
 /**
  * 운영 일정 (KST ISO 8601, 예: '2026-12-01T00:00:00+09:00').
@@ -33,14 +33,15 @@ export const POINT_EVENT_SCHEDULE: {
   shippingFrom: null,
 };
 
+/**
+ * 당첨 화면(my-result 의 prizeCode → 경품 이름·이미지)에만 쓰는 경품 정보.
+ * 소개 페이지·내 포인트 페이지의 경품은 서버 응모 대상(GET /v1/raffles)을 쓴다.
+ * 당첨 확인 API 가 나오면 서버 값으로 바꾸고 지울 것.
+ */
 export type Prize = {
-  /** 응모 API 에 보내는 경품 코드 */
+  /** 당첨 결과(prizeCode)와 맞추는 경품 코드 */
   code: string;
   name: string;
-  /** 토스트·미당첨 요약에 쓰는 짧은 이름 */
-  shortName: string;
-  description: string;
-  winnerCount: number;
   image: string;
 };
 
@@ -48,17 +49,11 @@ export const PRIZES: Prize[] = [
   {
     code: 'KEYRING',
     name: '태그미 붕어빵 키링',
-    shortName: '키링',
-    description: '노플라스틱선데이 콜라보 · 폰에 대면 앱이 열리는 NFC 키링',
-    winnerCount: 20,
     image: '/events/point/prize-keyring.jpg',
   },
   {
     code: 'HOTPACK',
     name: '붕어빵 핫팩',
-    shortName: '핫팩',
-    description: '진짜 팥이 든 재사용 핫팩 · 전자레인지 30~40초',
-    winnerCount: 30,
     image: '/events/point/prize-hotpack.jpg',
   },
 ];

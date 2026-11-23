@@ -5,16 +5,16 @@ import {
   POINT_EVENT_SCHEDULE,
   PRIZES,
 } from '@/src/config/PointEvent';
-import type { PointHistory, PrizeEntryCount } from '@/src/models/PointEvent';
+import type { PointHistory } from '@/src/models/PointEvent';
 import { readPageAuth } from '@/src/server/authorizedApi';
 import {
-  fetchMissions,
-  fetchMyEntries,
   fetchMyPromotionResult,
+  fetchMyRaffles,
   fetchPointBalance,
+  fetchPointChange,
   fetchPointHistories,
 } from '@/src/server/pointEvent';
-import { isPast } from '@/src/utils/pointEvent';
+import { earnedAmount, isPast, kstTodayRange, parseDate } from '@/src/utils/pointEvent';
 import {
   ErrorScreen,
   LoserScreen,
@@ -45,11 +45,11 @@ export default async function MyPointPage() {
   if (!auth.token) return <OpenInAppScreen pageUrl={await currentPageUrl()} />;
   const session = { token: auth.token, userAgent: auth.userAgent };
 
-  const [balance, histories, entries, missions] = await Promise.all([
+  const [balance, histories, raffles, todayChange] = await Promise.all([
     fetchPointBalance(session),
     fetchPointHistories(session),
-    fetchMyEntries(session),
-    fetchMissions(session),
+    fetchMyRaffles(session),
+    fetchPointChange(session, kstTodayRange()),
   ]);
 
   if (balance.status === 'unauthorized' || histories.status === 'unauthorized') {
@@ -57,11 +57,15 @@ export default async function MyPointPage() {
   }
   if (balance.status !== 'ok' || histories.status !== 'ok') return <ErrorScreen />;
 
-  // 응모 API(TH-1610) 가 아직 없으면 응모 횟수는 0으로 보여준다.
-  const entryCounts: PrizeEntryCount[] = entries.status === 'ok' ? entries.data.entries : [];
-  const endAt =
-    POINT_EVENT_SCHEDULE.endAt ??
-    (missions.status === 'ok' ? missions.data.group.endDateTime : null);
+  // 응모 목록·오늘 적립은 실패해도 페이지는 보여준다 (응모 영역만 오류 문구, 오늘 적립은 숨김).
+  const raffleList = raffles.status === 'ok' ? raffles.data.contents : null;
+  const todayEarned = todayChange.status === 'ok' ? earnedAmount(todayChange.data) : null;
+  // 응모 마감: 설정 값이 우선, 없으면 응모 대상 중 가장 늦은 종료 일시(미포함)
+  const raffleEnd = raffleList
+    ?.map((raffle) => raffle.endDateTime)
+    .sort((a, b) => parseDate(a).getTime() - parseDate(b).getTime())
+    .at(-1);
+  const endAt = POINT_EVENT_SCHEDULE.endAt ?? raffleEnd ?? null;
 
   if (isPast(POINT_EVENT_SCHEDULE.announceAt)) {
     const result = await fetchMyPromotionResult(session);
@@ -79,7 +83,7 @@ export default async function MyPointPage() {
     let all: PointHistory[] = histories.data.contents;
     let cursor = histories.data.cursor;
     for (let page = 1; cursor.hasMore && cursor.nextCursor && page < MAX_SUMMARY_PAGES; page++) {
-      const next = await fetchPointHistories(session, cursor.nextCursor);
+      const next = await fetchPointHistories(session, { cursor: cursor.nextCursor });
       if (next.status !== 'ok') break;
       all = all.concat(next.data.contents);
       cursor = next.data.cursor;
@@ -87,14 +91,15 @@ export default async function MyPointPage() {
     const totalEarned = cursor.hasMore
       ? null
       : all.reduce((sum, item) => (item.type === 'EARN' ? sum + item.amount : sum), 0);
-    return <LoserScreen entries={entryCounts} totalEarned={totalEarned} />;
+    return <LoserScreen raffles={raffleList ?? []} totalEarned={totalEarned} />;
   }
 
   return (
     <PointDashboard
       initialBalance={balance.data.balance}
       initialHistories={histories.data}
-      initialEntries={entryCounts}
+      initialRaffles={raffleList}
+      initialTodayEarned={todayEarned}
       endAt={endAt}
       announceAt={POINT_EVENT_SCHEDULE.announceAt}
     />

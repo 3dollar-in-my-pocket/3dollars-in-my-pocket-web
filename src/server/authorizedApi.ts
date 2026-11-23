@@ -8,7 +8,14 @@ export const EVENT_TOKEN_COOKIE = 'th_event_token';
 export type ApiResult<T> =
   | { status: 'ok'; data: T }
   | { status: 'unauthorized' }
-  | { status: 'error'; message?: string; httpStatus?: number };
+  | {
+      status: 'error';
+      message?: string;
+      /** 서버 error 코드 (예: insufficient_point). 연결 실패면 없음 */
+      error?: string;
+      /** 연결 실패·타임아웃이면 없음 */
+      httpStatus?: number;
+    };
 
 type ApiEnvelope<T> = {
   ok?: boolean;
@@ -19,7 +26,8 @@ type ApiEnvelope<T> = {
 
 type RequestOptions = {
   method?: 'GET' | 'POST';
-  token: string;
+  /** null 이면 Authorization 없이 부른다 (로그인 없이 보는 공개 API) */
+  token: string | null;
   userAgent: string | null;
   searchParams?: URLSearchParams;
   body?: unknown;
@@ -38,7 +46,7 @@ export async function requestWithToken<T>(
       method,
       headers: {
         'Content-Type': 'application/json',
-        Authorization: token,
+        ...(token ? { Authorization: token } : {}),
         ...(userAgent ? { 'User-Agent': userAgent } : {}),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -53,6 +61,7 @@ export async function requestWithToken<T>(
       return {
         status: 'error',
         message: envelope.message ?? undefined,
+        error: envelope.error ?? undefined,
         httpStatus: response.status,
       };
     }

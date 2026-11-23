@@ -1,8 +1,8 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { POINT_EVENT_PATH, PRIZES } from '@/src/config/PointEvent';
-import type { PrizeEntryCount } from '@/src/models/PointEvent';
-import { formatPoint } from '@/src/utils/pointEvent';
+import { POINT_EVENT_PATH } from '@/src/config/PointEvent';
+import type { Raffle } from '@/src/models/PointEvent';
+import { formatPoint, myEntryCount } from '@/src/utils/pointEvent';
 import styles from '../point.module.css';
 import { APP_HOME_LINK, openInAppLink } from './appLink';
 import RetryButton from './RetryButton';
@@ -49,19 +49,17 @@ export function OpenInAppScreen({ pageUrl }: { pageUrl: string }) {
 
 /** 상태 ③ 발표 후 미당첨 */
 export function LoserScreen({
-  entries,
+  raffles,
   totalEarned,
 }: {
-  entries: PrizeEntryCount[];
+  raffles: Raffle[];
   totalEarned: number | null;
 }) {
-  const entrySummary = PRIZES.map((prize) => ({
-    prize,
-    count: entries.find((entry) => entry.prizeCode === prize.code)?.count ?? 0,
-  }))
+  const entrySummary = raffles
+    .map((raffle) => ({ title: raffle.title, count: myEntryCount(raffle) }))
     .filter(({ count }) => count > 0)
     .sort((a, b) => b.count - a.count)
-    .map(({ prize, count }) => `${prize.shortName} ${count}회`)
+    .map(({ title, count }) => `${title} ${count}회`)
     .join(', ');
 
   return (
