@@ -135,12 +135,37 @@ export function missionPoint(mission: Mission): number {
     .reduce((sum, reward) => sum + reward.amount, 0);
 }
 
-/** 조건 줄: '하루 3회까지' (+ 진행도가 있으면 '· 오늘 1회 완료') */
+/** 조건 줄에 쓰는 활동 이름. 모르는 활동은 '활동' */
+const ACTIVITY_NAME: Record<string, string> = {
+  STORE_REGISTER: '가게 제보',
+  STORE_VISIT: '방문',
+  STORE_REVIEW_REGISTER: '리뷰',
+  STORE_FAVORITE: '즐겨찾기',
+  STORE_IMAGE_REGISTER: '사진 제보',
+};
+
+/**
+ * 조건 줄. 세는 단위를 '적립(포인트 지급) 횟수'로 통일한다.
+ * - 활동 1회마다 지급: '하루 최대 10번 적립 · 오늘 3번 받음'
+ * - 활동 N회마다 지급: '방문 5회마다 · 하루 최대 2번 적립 · 오늘 1번 받음 · 다음 적립까지 3/5회'
+ */
 export function missionCondition(mission: Mission): string {
   const daily = mission.periodType === 'DAILY';
-  const parts = [`${daily ? '하루' : '기간 중'} ${mission.maxCompletionCount}회까지`];
+  const condition = mission.conditions[0];
+  const target = condition?.targetCount ?? 1;
+  const parts: string[] = [];
+
+  if (target > 1) {
+    parts.push(`${ACTIVITY_NAME[condition.activityType] ?? '활동'} ${target}회마다`);
+  }
+  parts.push(`${daily ? '하루' : '기간 중'} 최대 ${mission.maxCompletionCount}번 적립`);
   if (mission.completedCount > 0) {
-    parts.push(`${daily ? '오늘 ' : ''}${mission.completedCount}회 완료`);
+    parts.push(`${daily ? '오늘 ' : ''}${mission.completedCount}번 받음`);
+  }
+  // 진행도가 회차 누적이어도 이번 회차 몫만 보이게 target 으로 나눈 나머지를 쓴다.
+  const progress = target > 1 ? condition.progressCount % target : 0;
+  if (progress > 0 && !isMissionDone(mission)) {
+    parts.push(`다음 적립까지 ${progress}/${target}회`);
   }
   return parts.join(' · ');
 }
