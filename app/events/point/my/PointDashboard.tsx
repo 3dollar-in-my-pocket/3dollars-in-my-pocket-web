@@ -16,7 +16,6 @@ import {
   historyTitle,
   myEntryCount,
   raffleCost,
-  sharedRaffleCost,
   type HistoryFilter,
 } from '@/src/utils/pointEvent';
 import styles from '../point.module.css';
@@ -127,7 +126,6 @@ export default function PointDashboard({
   const groups = useMemo(() => groupByDay(histories), [histories]);
   const isEmpty = balance === 0 && !hasAnyHistory;
   const sheetRaffle = raffles?.find((raffle) => raffle.raffleId === sheetRaffleId) ?? null;
-  const sameCost = sharedRaffleCost(raffles);
 
   /** 필터 탭의 첫 페이지부터 다시 불러온다 (커서는 필터마다 따로라 이어 쓰면 항목이 빠진다) */
   const loadHistories = async (nextFilter: HistoryFilter) => {
@@ -268,8 +266,7 @@ export default function PointDashboard({
           <div className={styles.blockTitle}>
             <h2 className={styles.blockHeading}>굿즈 응모</h2>
             <p className={styles.blockSub}>
-              {sameCost !== null && `응모 1회 ${formatPoint(sameCost)} · `}여러 번 응모할수록 당첨 확률이
-              올라가요
+              여러 번 응모할수록 당첨 확률이 올라가요
             </p>
           </div>
           {raffles === null ? (
@@ -291,8 +288,15 @@ export default function PointDashboard({
                   </div>
                   <div className={styles.prizeRowText}>
                     <h3 className={styles.prizeRowName}>{raffle.title}</h3>
-                    {raffle.winnerCount !== null && (
-                      <p className={styles.prizeRowWinners}>추첨 {raffle.winnerCount}명</p>
+                    {(raffle.winnerCount !== null || cost !== null) && (
+                      <p className={styles.prizeRowWinners}>
+                        {[
+                          raffle.winnerCount !== null && `추첨 ${raffle.winnerCount}명`,
+                          cost !== null && `응모 1회 ${formatPoint(cost)}`,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </p>
                     )}
                     <span className={count > 0 ? styles.pill : `${styles.pill} ${styles.pillGray}`}>
                       내 응모 {count}회
