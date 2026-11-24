@@ -5,6 +5,7 @@ import {
   missionCondition,
   missionIcon,
   missionPoint,
+  missionTitle,
 } from '@/src/utils/pointEvent';
 import styles from '../point.module.css';
 
@@ -53,6 +54,7 @@ export default function EarnTable({
     <ul className={styles.earnTable}>
       {missions.map((mission) => {
         const done = isMissionDone(mission);
+        const { title, bonus } = missionTitle(mission);
         return (
           <li
             key={mission.missionId}
@@ -63,7 +65,10 @@ export default function EarnTable({
               <img src={missionIcon(mission)} width={22} height={22} alt="" />
             </span>
             <span className={styles.earnText}>
-              <span className={styles.earnTitle}>{mission.title}</span>
+              <span className={styles.earnTitle}>
+                {title}
+                {bonus && <> <span className={styles.earnBonus}>보너스</span></>}
+              </span>
               <span className={styles.earnCondition}>
                 {missionCondition(mission)}
               </span>
