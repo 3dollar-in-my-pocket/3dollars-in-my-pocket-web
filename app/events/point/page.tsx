@@ -23,7 +23,7 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   title: '붕어빵 활동하고 붕어빵 굿즈 받자!',
   description:
-    '가게를 제보하고 리뷰를 남기면 포인트가 쌓여요. 모은 포인트로 붕어빵 굿즈에 응모해 보세요.',
+    '앱에서 붕어빵 활동을 할 때마다 포인트가 쌓여요. 모은 포인트로 붕어빵 굿즈에 응모해 보세요.',
   robots: { index: false, follow: false },
 };
 
@@ -199,7 +199,7 @@ export default async function PointEventPage() {
               <span className={styles.pinkText}>붕어빵 굿즈</span> 받자!
             </h1>
             <p className={styles.heroDescription}>
-              가게를 제보하고 리뷰를 남기면 포인트가 쌓여요.
+              앱에서 붕어빵 활동을 할 때마다 포인트가 쌓여요.
               <br />
               모은 포인트로 굿즈에 응모해 보세요.
             </p>
