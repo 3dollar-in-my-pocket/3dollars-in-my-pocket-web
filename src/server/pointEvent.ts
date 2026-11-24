@@ -62,7 +62,7 @@ export function fetchMyPromotionResult({ token, userAgent }: Auth) {
 
 /**
  * 기간별 포인트 증감 (increaseAmount 증가분, decreaseAmount 감소분, netAmount 순증감).
- * start 포함, end 미포함, KST LocalDateTime, 최대 7일.
+ * start 포함, end 미포함, KST LocalDateTime, 최대 15일.
  */
 export function fetchPointChange(
   { token, userAgent }: Auth,

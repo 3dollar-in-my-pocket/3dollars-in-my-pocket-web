@@ -5,7 +5,6 @@ import {
   POINT_EVENT_SCHEDULE,
   PRIZES,
 } from '@/src/config/PointEvent';
-import type { PointHistory } from '@/src/models/PointEvent';
 import { readPageAuth } from '@/src/server/authorizedApi';
 import {
   fetchMyPromotionResult,
@@ -14,7 +13,12 @@ import {
   fetchPointChange,
   fetchPointHistories,
 } from '@/src/server/pointEvent';
-import { earnedAmount, isPast, kstTodayRange, parseDate } from '@/src/utils/pointEvent';
+import {
+  isPast,
+  kstTodayRange,
+  parseDate,
+  toKstLocalDateTime,
+} from '@/src/utils/pointEvent';
 import {
   ErrorScreen,
   LoserScreen,
@@ -30,8 +34,22 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-/** 미당첨 요약용: 이벤트 동안 적립한 포인트 합계 (최대 10페이지까지만 모은다) */
-const MAX_SUMMARY_PAGES = 10;
+type Session = { token: string; userAgent: string | null };
+
+/**
+ * 미당첨 요약용: 이벤트 기간 동안 적립한 포인트 합계 (/changes increaseAmount).
+ * endAt 은 포함 시각(23:59:59)이라 1초 뒤를 미포함 끝으로 쓴다. 기간은 /changes 한도(15일) 안이다.
+ * 일정이 없거나 실패하면 null (합계 줄을 숨긴다).
+ */
+async function loadTotalEarned(session: Session): Promise<number | null> {
+  const { startAt, endAt } = POINT_EVENT_SCHEDULE;
+  if (!startAt || !endAt) return null;
+  const change = await fetchPointChange(session, {
+    start: toKstLocalDateTime(parseDate(startAt)),
+    end: toKstLocalDateTime(new Date(parseDate(endAt).getTime() + 1000)),
+  });
+  return change.status === 'ok' ? change.data.increaseAmount : null;
+}
 
 async function currentPageUrl(): Promise<string> {
   const headerStore = await headers();
@@ -43,7 +61,7 @@ async function currentPageUrl(): Promise<string> {
 export default async function MyPointPage() {
   const auth = await readPageAuth();
   if (!auth.token) return <OpenInAppScreen pageUrl={await currentPageUrl()} />;
-  const session = { token: auth.token, userAgent: auth.userAgent };
+  const session: Session = { token: auth.token, userAgent: auth.userAgent };
 
   const [balance, histories, raffles, todayChange] = await Promise.all([
     fetchPointBalance(session),
@@ -59,7 +77,7 @@ export default async function MyPointPage() {
 
   // 응모 목록·오늘 적립은 실패해도 페이지는 보여준다 (응모 영역만 오류 문구, 오늘 적립은 숨김).
   const raffleList = raffles.status === 'ok' ? raffles.data.contents : null;
-  const todayEarned = todayChange.status === 'ok' ? earnedAmount(todayChange.data) : null;
+  const todayEarned = todayChange.status === 'ok' ? todayChange.data.increaseAmount : null;
   // 응모 마감: 설정 값이 우선, 없으면 응모 대상 중 가장 늦은 종료 일시(미포함)
   const raffleEnd = raffleList
     ?.map((raffle) => raffle.endDateTime)
@@ -68,7 +86,10 @@ export default async function MyPointPage() {
   const endAt = POINT_EVENT_SCHEDULE.endAt ?? raffleEnd ?? null;
 
   if (isPast(POINT_EVENT_SCHEDULE.announceAt)) {
-    const result = await fetchMyPromotionResult(session);
+    const [result, totalEarned] = await Promise.all([
+      fetchMyPromotionResult(session),
+      loadTotalEarned(session),
+    ]);
     if (result.status === 'unauthorized') {
       return <OpenInAppScreen pageUrl={await currentPageUrl()} />;
     }
@@ -80,17 +101,6 @@ export default async function MyPointPage() {
       return <WinnerForm prize={prize} claimDeadline={POINT_EVENT_SCHEDULE.claimDeadline} />;
     }
 
-    let all: PointHistory[] = histories.data.contents;
-    let cursor = histories.data.cursor;
-    for (let page = 1; cursor.hasMore && cursor.nextCursor && page < MAX_SUMMARY_PAGES; page++) {
-      const next = await fetchPointHistories(session, { cursor: cursor.nextCursor });
-      if (next.status !== 'ok') break;
-      all = all.concat(next.data.contents);
-      cursor = next.data.cursor;
-    }
-    const totalEarned = cursor.hasMore
-      ? null
-      : all.reduce((sum, item) => (item.type === 'EARN' ? sum + item.amount : sum), 0);
     return <LoserScreen raffles={raffleList ?? []} totalEarned={totalEarned} />;
   }
 
