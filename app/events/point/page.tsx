@@ -243,7 +243,7 @@ export default async function PointEventPage() {
             {[
               {
                 title: '앱에서 활동하고 포인트 모으기',
-                description: '가게 제보, 리뷰, 방문 인증에 참여하면 포인트가 바로 쌓여요.',
+                description: '활동에 참여하면 포인트가 바로 쌓여요.',
               },
               {
                 title: '모은 포인트로 응모하기',
