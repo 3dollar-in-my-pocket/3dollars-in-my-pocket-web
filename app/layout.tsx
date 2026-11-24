@@ -166,7 +166,7 @@ export default function RootLayout({
           rel="stylesheet"
           as="style"
           crossOrigin=""
-          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.8/dist/web/static/pretendard.css"
+          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.8/dist/web/static/pretendard-dynamic-subset.min.css"
         />
         <style>{`
           :root {
