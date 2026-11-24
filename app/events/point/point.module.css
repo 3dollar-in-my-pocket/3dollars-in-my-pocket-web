@@ -398,6 +398,23 @@
   line-height: 18px;
 }
 
+.earnBonus {
+  margin-left: 2px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--pink-50);
+  color: var(--pink-text);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 14px;
+  vertical-align: 1px;
+}
+
+.earnDone .earnBonus {
+  background: var(--gray-10);
+  color: var(--gray-50);
+}
+
 .earnCondition {
   margin: 0;
   font-size: 12px;
