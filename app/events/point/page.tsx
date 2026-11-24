@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { POINT_EVENT_MY_PATH, POINT_EVENT_SCHEDULE } from '@/src/config/PointEvent';
 import type { MissionGroupMissions, Raffle } from '@/src/models/PointEvent';
 import { readPageAuth } from '@/src/server/authorizedApi';
@@ -14,6 +15,7 @@ import {
 } from '@/src/utils/pointEvent';
 import EarnTable from './_components/EarnTable';
 import SectionHeader from './_components/SectionHeader';
+import Skeleton from './_components/Skeleton';
 import styles from './point.module.css';
 
 export const dynamic = 'force-dynamic';
@@ -51,6 +53,97 @@ async function loadRaffles(userAgent: string | null): Promise<Raffle[] | null> {
   return result.status === 'ok' ? result.data.contents : null;
 }
 
+/** 일정은 설정 값이 우선. 둘 다 있으면 미션 API 를 기다리지 않는다 */
+async function loadSchedule(missionsPromise: Promise<MissionState>) {
+  const { startAt, endAt } = POINT_EVENT_SCHEDULE;
+  if (startAt && endAt) return { startAt, endAt };
+  const missions = await missionsPromise;
+  const group = missions.status === 'ok' ? missions.data.group : null;
+  return {
+    startAt: startAt ?? group?.startDateTime ?? null,
+    endAt: endAt ?? group?.endDateTime ?? null,
+  };
+}
+
+/** 경품 카드 — 응모 대상 목록이 오면 스트리밍. 못 불러오면 안내 문구, 비어 있으면 영역을 숨긴다 */
+async function PrizeSection({ rafflesPromise }: { rafflesPromise: Promise<Raffle[] | null> }) {
+  const raffles = await rafflesPromise;
+  if (raffles?.length === 0) return null;
+  return (
+    <section className={styles.section}>
+      <SectionHeader kicker="경품" title="붕어빵 킹 경품" />
+      {raffles === null ? (
+        <p className={styles.prizeFallback}>
+          경품 정보를 불러오지 못했어요. 잠시 후 다시 확인해 주세요.
+        </p>
+      ) : (
+        <div className={styles.prizeGrid}>
+          {raffles.map((raffle) => (
+            <article key={raffle.raffleId} className={styles.prizeCard}>
+              <div className={styles.prizeImage}>
+                {raffle.image && (
+                  <Image
+                    src={raffle.image.imageUrl}
+                    alt={raffle.title}
+                    fill
+                    sizes="(max-width: 480px) 40vw, 180px"
+                    unoptimized
+                  />
+                )}
+              </div>
+              <div className={styles.prizeText}>
+                <h3 className={styles.prizeName}>{raffle.title}</h3>
+                {raffle.description && (
+                  <p className={styles.prizeDescription}>{raffle.description}</p>
+                )}
+                {raffle.winnerCount !== null && (
+                  <span className={styles.pill}>추첨 {raffle.winnerCount}명</span>
+                )}
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function PrizeSectionSkeleton() {
+  return (
+    <section className={styles.section} aria-busy="true">
+      <SectionHeader kicker="경품" title="붕어빵 킹 경품" />
+      <div className={styles.prizeGrid}>
+        <Skeleton height={240} radius={20} />
+        <Skeleton height={240} radius={20} />
+      </div>
+    </section>
+  );
+}
+
+const ENTRY_STEP_SUFFIX = '여러 번 응모할수록 당첨 확률이 올라가요.';
+
+/** 참여 방법 2단계 — 응모 비용은 응모 대상 목록이 와야 알 수 있다 */
+async function EntryStepDescription({
+  rafflesPromise,
+}: {
+  rafflesPromise: Promise<Raffle[] | null>;
+}) {
+  const entryCost = sharedRaffleCost(await rafflesPromise);
+  return entryCost !== null
+    ? `응모 1회에 ${formatPoint(entryCost)}를 써요. ${ENTRY_STEP_SUFFIX}`
+    : ENTRY_STEP_SUFFIX;
+}
+
+async function EarnSection({ missionsPromise }: { missionsPromise: Promise<MissionState> }) {
+  const missionState = await missionsPromise;
+  return (
+    <EarnTable
+      missions={missionState.status === 'ok' ? missionState.data.missions : null}
+      unavailable={missionState.status === 'error' ? 'error' : 'no-token'}
+    />
+  );
+}
+
 function currentStep(endAt: string | null): number {
   const { announceAt, shippingFrom } = POINT_EVENT_SCHEDULE;
   if (isPast(shippingFrom)) return 3;
@@ -61,14 +154,10 @@ function currentStep(endAt: string | null): number {
 
 export default async function PointEventPage() {
   const { token, userAgent } = await readPageAuth();
-  const [missionState, raffles] = await Promise.all([
-    loadMissions(token, userAgent),
-    loadRaffles(userAgent),
-  ]);
-  const entryCost = sharedRaffleCost(raffles);
-  const missionGroup = missionState.status === 'ok' ? missionState.data : null;
-  const startAt = POINT_EVENT_SCHEDULE.startAt ?? missionGroup?.group.startDateTime ?? null;
-  const endAt = POINT_EVENT_SCHEDULE.endAt ?? missionGroup?.group.endDateTime ?? null;
+  // 두 API 는 기다리지 않고 시작만 해 두고, 쓰는 영역만 Suspense 로 스트리밍한다.
+  const missionsPromise = loadMissions(token, userAgent);
+  const rafflesPromise = loadRaffles(userAgent);
+  const { startAt, endAt } = await loadSchedule(missionsPromise);
   const started = !startAt || isPast(startAt);
   const { announceAt, claimDeadline, shippingFrom } = POINT_EVENT_SCHEDULE;
   const period =
@@ -144,44 +233,9 @@ export default async function PointEventPage() {
           </div>
         </section>
 
-        {/* 경품은 서버 응모 대상 목록으로 그린다. 못 불러오면 안내 문구, 비어 있으면 영역을 숨긴다. */}
-        {raffles?.length !== 0 && (
-          <section className={styles.section}>
-            <SectionHeader kicker="경품" title="붕어빵 킹 경품" />
-            {raffles === null ? (
-              <p className={styles.prizeFallback}>
-                경품 정보를 불러오지 못했어요. 잠시 후 다시 확인해 주세요.
-              </p>
-            ) : (
-              <div className={styles.prizeGrid}>
-                {raffles.map((raffle) => (
-                  <article key={raffle.raffleId} className={styles.prizeCard}>
-                    <div className={styles.prizeImage}>
-                      {raffle.image && (
-                        <Image
-                          src={raffle.image.imageUrl}
-                          alt={raffle.title}
-                          fill
-                          sizes="(max-width: 480px) 40vw, 180px"
-                          unoptimized
-                        />
-                      )}
-                    </div>
-                    <div className={styles.prizeText}>
-                      <h3 className={styles.prizeName}>{raffle.title}</h3>
-                      {raffle.description && (
-                        <p className={styles.prizeDescription}>{raffle.description}</p>
-                      )}
-                      {raffle.winnerCount !== null && (
-                        <span className={styles.pill}>추첨 {raffle.winnerCount}명</span>
-                      )}
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </section>
-        )}
+        <Suspense fallback={<PrizeSectionSkeleton />}>
+          <PrizeSection rafflesPromise={rafflesPromise} />
+        </Suspense>
 
         <section className={`${styles.section} ${styles.sectionGray}`}>
           <SectionHeader kicker="참여 방법" title="세 단계면 끝나요" />
@@ -193,7 +247,11 @@ export default async function PointEventPage() {
               },
               {
                 title: '모은 포인트로 응모하기',
-                description: `${entryCost !== null ? `응모 1회에 ${formatPoint(entryCost)}를 써요. ` : ''}여러 번 응모할수록 당첨 확률이 올라가요.`,
+                description: (
+                  <Suspense fallback={ENTRY_STEP_SUFFIX}>
+                    <EntryStepDescription rafflesPromise={rafflesPromise} />
+                  </Suspense>
+                ),
               },
               {
                 title: '당첨 발표 확인하기',
@@ -213,10 +271,9 @@ export default async function PointEventPage() {
 
         <section id="earn" className={styles.section}>
           <SectionHeader kicker="포인트 모으는 법" title="활동하면 바로 적립돼요" />
-          <EarnTable
-            missions={missionGroup?.missions ?? null}
-            unavailable={missionState.status === 'error' ? 'error' : 'no-token'}
-          />
+          <Suspense fallback={<Skeleton height={280} radius={20} />}>
+            <EarnSection missionsPromise={missionsPromise} />
+          </Suspense>
         </section>
 
         <section className={`${styles.section} ${styles.sectionGray}`}>
