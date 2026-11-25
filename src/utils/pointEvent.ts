@@ -143,8 +143,8 @@ export function missionTitle(mission: Mission): { title: string; bonus: boolean 
 
 /**
  * 조건 줄. 세는 단위를 '적립(포인트 지급) 횟수'로 통일한다.
- * - 활동 1회마다 지급: '1회마다 적립 · 하루 최대 10번 적립 · 오늘 3번 받음'
- * - 활동 N회마다 지급: '5회마다 적립 · 하루 최대 2번 적립 · 오늘 1번 받음 · 다음 적립까지 3/5회'
+ * - 활동 1회마다 지급: '1회마다 적립 · 오늘 3/10번 적립'
+ * - 활동 N회마다 지급: '5회마다 적립 · 오늘 1/2번 적립 · 다음 적립까지 3/5회'
  *   (무슨 활동인지는 바로 위 미션 제목이 알려 주므로 활동 이름은 쓰지 않는다)
  */
 export function missionCondition(mission: Mission): string {
@@ -154,9 +154,13 @@ export function missionCondition(mission: Mission): string {
   const parts: string[] = [];
 
   parts.push(`${target}회마다 적립`);
-  parts.push(`${daily ? '하루' : '기간 중'} 최대 ${mission.maxCompletionCount}번 적립`);
-  if (mission.completedCount > 0) {
-    parts.push(`${daily ? '오늘 ' : ''}${mission.completedCount}번 받음`);
+  if (daily) {
+    parts.push(`오늘 ${mission.completedCount}/${mission.maxCompletionCount}번 적립`);
+  } else {
+    parts.push(`기간 중 최대 ${mission.maxCompletionCount}번 적립`);
+    if (mission.completedCount > 0) {
+      parts.push(`${mission.completedCount}번 받음`);
+    }
   }
   // 진행도가 회차 누적이어도 이번 회차 몫만 보이게 target 으로 나눈 나머지를 쓴다.
   const progress = target > 1 ? condition.progressCount % target : 0;
