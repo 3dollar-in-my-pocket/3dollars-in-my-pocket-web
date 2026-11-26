@@ -113,11 +113,64 @@ export type Raffle = {
   endDateTime: string;
 };
 
-export type DeliveryForm = {
+// ---------------------------------------------------------------------------
+// 당첨 결과 · 수령 정보 (노션 "261124 - 프로모션 당첨 확인 & 수령 정보 API")
+// ---------------------------------------------------------------------------
+
+/**
+ * 프로모션 지급 방식. 이후 값이 늘어날 수 있으므로 모르는 값은 안전하게 처리한다.
+ * - REWARD_KEY: 당첨 키를 내려주는 방식 (POST /reward/claim)
+ * - RECIPIENT_INFO: 당첨자에게 수령 정보를 받는 방식 (POST /reward/recipient)
+ */
+export type PromotionRewardMethod = 'REWARD_KEY' | 'RECIPIENT_INFO' | (string & {});
+
+/** GET /v1/promotion/{code}/my-result */
+export type PromotionResult = {
+  isWinner: boolean;
+  rewardMethod: PromotionRewardMethod;
+  /** RECIPIENT_INFO 면 수령 정보를 등록한 상태. 당첨자가 아니면 false */
+  claimed: boolean;
+};
+
+/** POST /v1/promotion/{code}/reward/recipient 요청 바디 */
+export type RecipientRequest = {
   name: string;
-  phone: string;
-  zonecode: string;
+  /** 하이픈 포함 형식만 허용 (예: 010-1234-5678) */
+  phoneNumber: string;
+  address: {
+    zipCode: string;
+    address: string;
+    /** 필수. 빈 문자열 불가 */
+    addressDetail: string;
+  };
+};
+
+/** 수령 정보 입력 폼 (화면 상태) */
+export type RecipientForm = {
+  name: string;
+  phoneNumber: string;
+  /** 주소 검색 결과에서 그대로 채운다 (직접 입력 없음) */
+  zipCode: string;
   address: string;
   addressDetail: string;
   agreedPrivacy: boolean;
+};
+
+// ---------------------------------------------------------------------------
+// 주소 검색 (노션 "261124 - 주소 API", GET /v1/addresses/search)
+// null 필드는 키 자체가 빠져 내려온다 → optional 로 둔다.
+// ---------------------------------------------------------------------------
+
+export type AddressSearchResult = {
+  zipCode: string;
+  /** 도로명 주소 */
+  address: string;
+  jibunAddress?: string | null;
+  buildingName?: string | null;
+  location?: { latitude: number; longitude: number } | null;
+};
+
+export type AddressSearchPage = {
+  contents: AddressSearchResult[];
+  cursor: { nextCursor?: string | null; hasMore: boolean };
 };

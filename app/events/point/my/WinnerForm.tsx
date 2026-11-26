@@ -1,37 +1,23 @@
 'use client';
 
 import Image from 'next/image';
-import Script from 'next/script';
-import { useEffect, useRef, useState } from 'react';
-import type { Prize } from '@/src/config/PointEvent';
-import type { DeliveryForm } from '@/src/models/PointEvent';
+import { useRouter } from 'next/navigation';
+import { useCallback, useRef, useState } from 'react';
+import type { AddressSearchResult, RecipientForm } from '@/src/models/PointEvent';
 import {
   formatPhone,
   formatShortDate,
-  isDeliveryFormComplete,
+  isRecipientFormComplete,
+  RECIPIENT_LIMITS,
 } from '@/src/utils/pointEvent';
+import { APP_HOME_LINK } from '../_components/appLink';
 import styles from '../point.module.css';
+import AddressSearchLayer from './AddressSearchLayer';
 
-// 카카오 우편번호 서비스 스크립트 (t1.daumcdn.net 도메인은 2026-11-30 종료되어 kakaocdn 사용)
-const POSTCODE_SCRIPT = 'https://t1.kakaocdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
-
-type PostcodeResult = { zonecode: string; roadAddress: string; jibunAddress: string };
-type PostcodeConstructor = new (options: {
-  oncomplete: (data: PostcodeResult) => void;
-  width: string;
-  height: string;
-}) => { embed: (element: HTMLElement) => void };
-
-declare global {
-  interface Window {
-    daum?: { Postcode: PostcodeConstructor };
-  }
-}
-
-const EMPTY_FORM: DeliveryForm = {
+const EMPTY_FORM: RecipientForm = {
   name: '',
-  phone: '',
-  zonecode: '',
+  phoneNumber: '',
+  zipCode: '',
   address: '',
   addressDetail: '',
   agreedPrivacy: false,
@@ -39,64 +25,88 @@ const EMPTY_FORM: DeliveryForm = {
 
 const CONFETTI = ['confetti1', 'confetti2', 'confetti3', 'confetti4'] as const;
 
+type SubmitResponse =
+  | { status: 'ok' }
+  | { status: 'unauthorized' }
+  | { status: 'already_claimed'; message?: string }
+  | { status: 'error'; message?: string };
+
+/** 당첨 경품 — 서버 응모 대상 값 (어떤 경품인지 알 수 없으면 null) */
+export type WonPrize = { name: string; imageUrl: string | null };
+
+/**
+ * - needsInfo: RECIPIENT_INFO 이고 아직 등록 전 → 입력 폼
+ * - claimed: 이미 등록함 → 제출 완료 (수정 불가)
+ * - otherMethod: 수령 정보를 받지 않는 지급 방식(REWARD_KEY·모르는 값) → 별도 안내
+ */
+export type WinnerStatus = 'needsInfo' | 'claimed' | 'otherMethod';
+
 type Phase = 'editing' | 'submitting' | 'done';
 
 /** B-2. 당첨 · 수령 정보 입력 */
 export default function WinnerForm({
   prize,
+  status,
   claimDeadline,
 }: {
-  prize: Prize | null;
+  prize: WonPrize | null;
+  status: WinnerStatus;
   claimDeadline: string | null;
 }) {
-  const [form, setForm] = useState<DeliveryForm>(EMPTY_FORM);
+  const router = useRouter();
+  const [form, setForm] = useState<RecipientForm>(EMPTY_FORM);
   const [phase, setPhase] = useState<Phase>('editing');
   const [error, setError] = useState<string | null>(null);
-  const [postcodeOpen, setPostcodeOpen] = useState(false);
-  const [postcodeReady, setPostcodeReady] = useState(false);
-  const postcodeRef = useRef<HTMLDivElement>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [addressOpen, setAddressOpen] = useState(false);
   const detailRef = useRef<HTMLInputElement>(null);
 
-  const update = <K extends keyof DeliveryForm>(key: K, value: DeliveryForm[K]) =>
+  const update = <K extends keyof RecipientForm>(key: K, value: RecipientForm[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
-  useEffect(() => {
-    if (!postcodeOpen || !postcodeReady || !postcodeRef.current || !window.daum) return;
-    new window.daum.Postcode({
-      width: '100%',
-      height: '100%',
-      oncomplete: (data) => {
-        setForm((prev) => ({
-          ...prev,
-          zonecode: data.zonecode,
-          address: data.roadAddress || data.jibunAddress,
-        }));
-        setPostcodeOpen(false);
-        setTimeout(() => detailRef.current?.focus(), 0);
-      },
-    }).embed(postcodeRef.current);
-  }, [postcodeOpen, postcodeReady]);
+  const closeAddress = useCallback(() => setAddressOpen(false), []);
+  const selectAddress = useCallback((result: AddressSearchResult) => {
+    // 선택한 결과의 zipCode·address 를 그대로 넣고, 상세 주소는 새로 받는다.
+    setForm((prev) => ({ ...prev, zipCode: result.zipCode, address: result.address }));
+    setAddressOpen(false);
+    setTimeout(() => detailRef.current?.focus(), 0);
+  }, []);
+
+  const finish = (message: string | null) => {
+    setNotice(message);
+    setPhase('done');
+    window.scrollTo({ top: 0 });
+    // 등록 응답에는 상태가 없으므로 my-result 를 다시 불러 claimed 를 반영한다.
+    router.refresh();
+  };
 
   const submit = async () => {
-    if (!isDeliveryFormComplete(form) || phase !== 'editing') return;
+    if (!isRecipientFormComplete(form) || phase !== 'editing') return;
     setPhase('submitting');
     setError(null);
     try {
-      const response = await fetch('/api/events/point/delivery', {
+      const response = await fetch('/api/events/point/recipient', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          name: form.name,
+          phoneNumber: form.phoneNumber,
+          address: {
+            zipCode: form.zipCode,
+            address: form.address,
+            addressDetail: form.addressDetail,
+          },
+          agreedPrivacy: form.agreedPrivacy,
+        }),
       });
-      const body = await response.json();
-      if (body.status === 'ok') {
-        setPhase('done');
-        return;
-      }
+      const body = (await response.json()) as SubmitResponse;
+      if (body.status === 'ok') return finish(null);
+      if (body.status === 'already_claimed') return finish(body.message ?? null);
       setError(
         body.status === 'unauthorized'
           ? '로그인이 만료됐어요. 앱에서 이 페이지를 다시 열어 주세요.'
-          : body.message ?? '저장하지 못했어요. 잠시 후 다시 시도해 주세요.'
+          : body.message ?? '제출하지 못했어요. 잠시 후 다시 시도해 주세요.'
       );
     } catch {
       setError('인터넷 연결을 확인하고 다시 시도해 주세요.');
@@ -104,38 +114,48 @@ export default function WinnerForm({
     setPhase('editing');
   };
 
+  const done = status === 'claimed' || phase === 'done';
+  const showForm = status === 'needsInfo' && !done;
   const prizeName = prize?.name ?? '굿즈';
   const deadline = claimDeadline ? formatShortDate(claimDeadline) : '안내된 기한';
 
   return (
     <main className={styles.page}>
-      <Script src={POSTCODE_SCRIPT} strategy="lazyOnload" onReady={() => setPostcodeReady(true)} />
-      <div className={`${styles.content} ${phase === 'done' ? '' : styles.withBottomCta}`}>
+      <div className={`${styles.content} ${showForm ? styles.withBottomCta : ''}`}>
         <section className={styles.winHero}>
           {CONFETTI.map((piece) => (
             <span key={piece} className={`${styles.confetti} ${styles[piece]}`} aria-hidden />
           ))}
           <div className={styles.winImage}>
             <Image
-              src={prize?.image ?? '/events/point/mascot.png'}
+              src={prize?.imageUrl ?? '/events/point/mascot.png'}
               alt={prizeName}
               fill
               sizes="144px"
               priority
+              unoptimized={Boolean(prize?.imageUrl)}
             />
           </div>
-          <span className={`${styles.badge} ${styles.badgeDark}`}>당첨</span>
+          <span className={`${styles.badge} ${styles.badgeDark}`}>
+            {done ? '제출 완료' : '당첨'}
+          </span>
           <h1 className={styles.winTitle}>
             축하해요!
             <br />
             <span className={styles.pinkText}>{prizeName}</span>에 당첨됐어요
           </h1>
           <p className={styles.winDescription}>
-            {phase === 'done' ? (
+            {done ? (
               <>
                 받으실 정보를 잘 받았어요.
                 <br />
                 배송이 시작되면 앱 푸시로 알려드릴게요.
+              </>
+            ) : status === 'otherMethod' ? (
+              <>
+                경품 받는 방법은
+                <br />
+                앱 공지와 푸시로 따로 안내해 드릴게요.
               </>
             ) : (
               <>
@@ -147,7 +167,21 @@ export default function WinnerForm({
           </p>
         </section>
 
-        {phase !== 'done' && (
+        {(done || status === 'otherMethod') && (
+          <section className={styles.doneBox}>
+            {notice && (
+              <p className={styles.doneNotice} role="status">
+                {notice}
+              </p>
+            )}
+            {done && <p className={styles.doneNote}>제출한 정보는 수정할 수 없어요.</p>}
+            <a className={`${styles.cta} ${styles.ctaSecondary}`} href={APP_HOME_LINK}>
+              홈으로 가기
+            </a>
+          </section>
+        )}
+
+        {showForm && (
           <form
             className={styles.form}
             onSubmit={(event) => {
@@ -165,7 +199,7 @@ export default function WinnerForm({
                 onChange={(event) => update('name', event.target.value)}
                 placeholder="받는 분 이름"
                 autoComplete="name"
-                maxLength={30}
+                maxLength={RECIPIENT_LIMITS.name}
               />
             </label>
 
@@ -175,8 +209,8 @@ export default function WinnerForm({
                 className={styles.input}
                 type="tel"
                 inputMode="numeric"
-                value={form.phone}
-                onChange={(event) => update('phone', formatPhone(event.target.value))}
+                value={form.phoneNumber}
+                onChange={(event) => update('phoneNumber', formatPhone(event.target.value))}
                 placeholder="010-0000-0000"
                 autoComplete="tel"
               />
@@ -189,16 +223,16 @@ export default function WinnerForm({
               <div className={styles.fieldRow}>
                 <input
                   className={styles.input}
-                  value={form.address}
+                  value={form.address ? `[${form.zipCode}] ${form.address}` : ''}
                   placeholder="주소 검색"
                   readOnly
                   aria-labelledby="address-label"
-                  onClick={() => setPostcodeOpen(true)}
+                  onClick={() => setAddressOpen(true)}
                 />
                 <button
                   type="button"
                   className={styles.searchButton}
-                  onClick={() => setPostcodeOpen(true)}
+                  onClick={() => setAddressOpen(true)}
                 >
                   검색
                 </button>
@@ -208,9 +242,9 @@ export default function WinnerForm({
                 className={styles.input}
                 value={form.addressDetail}
                 onChange={(event) => update('addressDetail', event.target.value)}
-                placeholder="상세 주소 (동·호수)"
+                placeholder="상세 주소 (동·호수, 없으면 '없음')"
                 aria-label="상세 주소"
-                maxLength={100}
+                maxLength={RECIPIENT_LIMITS.addressDetail}
               />
             </div>
 
@@ -242,18 +276,22 @@ export default function WinnerForm({
               <p className={styles.consentNote}>동의하지 않으면 경품을 받을 수 없어요.</p>
             </div>
 
-            {error && (
-              <p className={styles.formError} role="alert">
-                {error}
-              </p>
-            )}
+            <p className={styles.consentNote}>
+              제출한 정보는 수정할 수 없어요. 제출 전에 한 번 더 확인해 주세요.
+            </p>
 
             <div className={styles.bottomCta}>
               <div className={styles.bottomCtaInner}>
+                {/* 고정 CTA 에 가려지지 않게 버튼 바로 위에 둔다 */}
+                {error && (
+                  <p className={`${styles.formError} ${styles.ctaError}`} role="alert">
+                    {error}
+                  </p>
+                )}
                 <button
                   type="submit"
                   className={styles.cta}
-                  disabled={!isDeliveryFormComplete(form) || phase === 'submitting'}
+                  disabled={!isRecipientFormComplete(form) || phase === 'submitting'}
                 >
                   {phase === 'submitting' ? '제출하는 중…' : '제출하기'}
                 </button>
@@ -263,17 +301,7 @@ export default function WinnerForm({
         )}
       </div>
 
-      {postcodeOpen && (
-        <div className={styles.postcodeLayer} role="dialog" aria-modal="true" aria-label="주소 검색">
-          <div className={styles.postcodeHeader}>
-            주소 검색
-            <button type="button" className={styles.postcodeClose} onClick={() => setPostcodeOpen(false)}>
-              닫기
-            </button>
-          </div>
-          <div ref={postcodeRef} className={styles.postcodeBody} />
-        </div>
-      )}
+      {addressOpen && <AddressSearchLayer onSelect={selectAddress} onClose={closeAddress} />}
     </main>
   );
 }
