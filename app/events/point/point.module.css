@@ -1461,16 +1461,57 @@
   color: var(--revoke);
 }
 
-.postcodeLayer {
+/* ---------- 제출 완료 ---------- */
+
+.doneBox {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px 20px 40px;
+}
+
+.doneNotice {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--gray-10);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--gray-80);
+}
+
+.ctaError {
+  padding-bottom: 10px;
+  text-align: center;
+}
+
+.doneNote {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--gray-60);
+}
+
+.doneBox .cta {
+  margin-top: 12px;
+}
+
+/* ---------- 주소 검색 (서버 GET /v1/addresses/search) ---------- */
+
+.addressLayer {
   position: fixed;
   inset: 0;
   z-index: 40;
   display: flex;
   flex-direction: column;
+  max-width: 480px;
+  margin: 0 auto;
+  padding-top: env(safe-area-inset-top);
   background: #ffffff;
 }
 
-.postcodeHeader {
+.addressHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1479,7 +1520,7 @@
   font-weight: 700;
 }
 
-.postcodeClose {
+.addressClose {
   height: 44px;
   padding: 0 4px;
   border: 0;
@@ -1490,8 +1531,94 @@
   cursor: pointer;
 }
 
-.postcodeBody {
+.addressSearchBar {
+  display: flex;
+  gap: 8px;
+  padding: 0 20px 12px;
+  border-bottom: 1px solid var(--gray-10);
+}
+
+.addressSearchBar .input {
   flex: 1;
+  min-width: 0;
+}
+
+.addressSearchBar .searchButton:disabled {
+  opacity: 0.5;
+}
+
+.addressBody {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 0 20px calc(24px + env(safe-area-inset-bottom));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.addressHint {
+  margin: 0;
+  padding: 32px 0;
+  font-size: 14px;
+  line-height: 1.6;
+  text-align: center;
+  color: var(--gray-60);
+}
+
+.addressList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.addressList li + li {
+  border-top: 1px solid var(--gray-10);
+}
+
+.addressItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 14px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.addressItem:active {
+  background: var(--gray-10);
+}
+
+.addressZip {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--pink-text);
+}
+
+.addressRoad {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--gray-100);
+}
+
+.addressJibun {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--gray-60);
+}
+
+.addressError {
+  padding: 16px 0 0;
+  text-align: center;
+}
+
+.addressMore {
+  flex: none;
 }
 
 @keyframes fadeIn {

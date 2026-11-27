@@ -6,12 +6,14 @@ import {
   RAFFLE_TICKET,
 } from '@/src/config/PointEvent';
 import type {
-  DeliveryForm,
+  AddressSearchPage,
   MissionGroupMissions,
   PointChange,
   PointHistoryFilterType,
   PointHistoryPage,
+  PromotionResult,
   Raffle,
+  RecipientRequest,
 } from '@/src/models/PointEvent';
 import { requestWithToken } from '@/src/server/authorizedApi';
 
@@ -53,11 +55,14 @@ export function fetchMissions({ token, userAgent }: Auth) {
   );
 }
 
+const promotionPath = `/api/v1/promotion/${encodeURIComponent(PROMOTION_CODE)}`;
+
+/**
+ * 당첨 결과. 비당첨자도 에러가 아니라 isWinner=false 로 온다.
+ * isWinner · rewardMethod · claimed 로 화면을 고른다.
+ */
 export function fetchMyPromotionResult({ token, userAgent }: Auth) {
-  return requestWithToken<{ isWinner: boolean; prizeCode?: string | null }>(
-    `/api/v1/promotion/${encodeURIComponent(PROMOTION_CODE)}/my-result`,
-    { token, userAgent }
-  );
+  return requestWithToken<PromotionResult>(`${promotionPath}/my-result`, { token, userAgent });
 }
 
 /**
@@ -104,18 +109,32 @@ export function enterRaffle({ token, userAgent }: Auth, raffleId: string, reques
   });
 }
 
-// ---------------------------------------------------------------------------
-// 당첨자 수령 정보 API 는 아직 서버 개발 전이라 가정한 계약이다.
-// 서버 스펙이 나오면 경로·필드만 여기서 맞추면 된다.
-// ---------------------------------------------------------------------------
+/**
+ * 수령 정보 등록 (rewardMethod=RECIPIENT_INFO 전용, 1회만 가능·수정 불가).
+ * 대상 당첨자는 토큰으로 식별한다. 이미 등록했으면 409 already_claimed_promotion_reward.
+ */
+export function submitRecipient({ token, userAgent }: Auth, body: RecipientRequest) {
+  return requestWithToken<string>(`${promotionPath}/reward/recipient`, {
+    method: 'POST',
+    token,
+    userAgent,
+    body,
+  });
+}
 
-/** 당첨자 배송 정보 저장 — 가정: POST /v1/promotion/{code}/delivery */
-export function submitDelivery(
+/** 한 번의 검색 흐름 동안 고정하는 페이지 크기 (커서에 size 가 들어 있어 바꾸면 invalid_cursor) */
+export const ADDRESS_PAGE_SIZE = 10;
+
+/** 도로명 주소 검색 (커서 페이징, 유저당 1초 10회 제한) */
+export function searchAddresses(
   { token, userAgent }: Auth,
-  form: Omit<DeliveryForm, 'agreedPrivacy'>
+  { query, cursor }: { query: string; cursor?: string | null }
 ) {
-  return requestWithToken<Record<string, unknown>>(
-    `/api/v1/promotion/${encodeURIComponent(PROMOTION_CODE)}/delivery`,
-    { method: 'POST', token, userAgent, body: form }
-  );
+  const searchParams = new URLSearchParams({ query, size: String(ADDRESS_PAGE_SIZE) });
+  if (cursor) searchParams.set('cursor', cursor);
+  return requestWithToken<AddressSearchPage>('/api/v1/addresses/search', {
+    token,
+    userAgent,
+    searchParams,
+  });
 }

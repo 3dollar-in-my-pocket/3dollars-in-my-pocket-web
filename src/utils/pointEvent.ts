@@ -1,11 +1,12 @@
 import { POINT_TICKET } from '@/src/config/PointEvent';
 import type {
-  DeliveryForm,
   Mission,
   MissionActivityType,
   PointHistory,
   PointHistoryFilterType,
   Raffle,
+  RecipientForm,
+  RecipientRequest,
 } from '@/src/models/PointEvent';
 
 const KST = 'Asia/Seoul';
@@ -259,8 +260,18 @@ export function createRequestKey(): string {
 }
 
 // ---------------------------------------------------------------------------
-// 배송 정보
+// 당첨 · 수령 정보
 // ---------------------------------------------------------------------------
+
+/**
+ * 당첨 경품 추정. my-result 에는 어떤 경품에 당첨됐는지가 없어서,
+ * 내가 응모한 경품이 딱 하나일 때만 그 경품(서버 응모 대상 값)으로 본다.
+ * 둘 이상 응모했거나 응모 내역을 못 불러왔으면 null (경품 이름 없이 표시).
+ */
+export function wonRaffle(raffles: Raffle[] | null): Raffle | null {
+  const entered = (raffles ?? []).filter((raffle) => myEntryCount(raffle) > 0);
+  return entered.length === 1 ? entered[0] : null;
+}
 
 /** 숫자만 받아 010-0000-0000 형태로 */
 export function formatPhone(value: string): string {
@@ -273,29 +284,59 @@ export function formatPhone(value: string): string {
   return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
 }
 
-const PHONE_PATTERN = /^01\d-\d{3,4}-\d{4}$/;
+/** 서버 허용 형식 (하이픈 포함). 화면은 휴대폰 번호만 받는다. */
+const SERVER_PHONE_PATTERN = /^\d{2,3}-\d{3,4}-\d{4}$/;
+const MOBILE_PHONE_PATTERN = /^01\d-\d{3,4}-\d{4}$/;
 
-export function isDeliveryFormComplete(form: DeliveryForm): boolean {
+/** 서버 검증 한도 (노션 수령 정보 API) */
+export const RECIPIENT_LIMITS = {
+  name: 50,
+  zipCode: 10,
+  address: 200,
+  addressDetail: 200,
+} as const;
+
+function filled(value: string, max: number): boolean {
+  const trimmed = value.trim();
+  return trimmed.length > 0 && trimmed.length <= max;
+}
+
+export function isRecipientFormComplete(form: RecipientForm): boolean {
   return (
-    form.name.trim().length > 0 &&
-    PHONE_PATTERN.test(form.phone) &&
-    form.address.trim().length > 0 &&
-    form.addressDetail.trim().length > 0 &&
+    filled(form.name, RECIPIENT_LIMITS.name) &&
+    MOBILE_PHONE_PATTERN.test(form.phoneNumber) &&
+    filled(form.zipCode, RECIPIENT_LIMITS.zipCode) &&
+    filled(form.address, RECIPIENT_LIMITS.address) &&
+    filled(form.addressDetail, RECIPIENT_LIMITS.addressDetail) &&
     form.agreedPrivacy
   );
 }
 
-export function validateDeliveryForm(value: unknown): DeliveryForm | null {
+/** 웹 → 웹 서버 요청 검증. 서버 바디 형태로 바꿔 돌려주고, 빠진 값이 있으면 null */
+export function toRecipientRequest(value: unknown): RecipientRequest | null {
   if (!value || typeof value !== 'object') return null;
   const input = value as Record<string, unknown>;
-  const text = (key: string) => (typeof input[key] === 'string' ? (input[key] as string).trim() : '');
-  const form: DeliveryForm = {
-    name: text('name').slice(0, 30),
-    phone: formatPhone(text('phone')),
-    zonecode: text('zonecode').slice(0, 10),
-    address: text('address').slice(0, 200),
-    addressDetail: text('addressDetail').slice(0, 100),
-    agreedPrivacy: input.agreedPrivacy === true,
+  const address = (input.address && typeof input.address === 'object'
+    ? input.address
+    : {}) as Record<string, unknown>;
+  const text = (source: Record<string, unknown>, key: string) =>
+    typeof source[key] === 'string' ? (source[key] as string).trim() : '';
+
+  const request: RecipientRequest = {
+    name: text(input, 'name'),
+    phoneNumber: text(input, 'phoneNumber'),
+    address: {
+      zipCode: text(address, 'zipCode'),
+      address: text(address, 'address'),
+      addressDetail: text(address, 'addressDetail'),
+    },
   };
-  return isDeliveryFormComplete(form) ? form : null;
+  const valid =
+    input.agreedPrivacy === true &&
+    filled(request.name, RECIPIENT_LIMITS.name) &&
+    SERVER_PHONE_PATTERN.test(request.phoneNumber) &&
+    filled(request.address.zipCode, RECIPIENT_LIMITS.zipCode) &&
+    filled(request.address.address, RECIPIENT_LIMITS.address) &&
+    filled(request.address.addressDetail, RECIPIENT_LIMITS.addressDetail);
+  return valid ? request : null;
 }

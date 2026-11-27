@@ -1,10 +1,7 @@
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
-import {
-  POINT_EVENT_MY_PATH,
-  POINT_EVENT_SCHEDULE,
-  PRIZES,
-} from '@/src/config/PointEvent';
+import { POINT_EVENT_MY_PATH, POINT_EVENT_SCHEDULE } from '@/src/config/PointEvent';
+import type { PromotionResult } from '@/src/models/PointEvent';
 import { readPageAuth } from '@/src/server/authorizedApi';
 import {
   fetchMyPromotionResult,
@@ -18,6 +15,7 @@ import {
   kstTodayRange,
   parseDate,
   toKstLocalDateTime,
+  wonRaffle,
 } from '@/src/utils/pointEvent';
 import {
   ErrorScreen,
@@ -25,7 +23,7 @@ import {
   OpenInAppScreen,
 } from '../_components/StateScreens';
 import PointDashboard from './PointDashboard';
-import WinnerForm from './WinnerForm';
+import WinnerForm, { type WinnerStatus } from './WinnerForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,6 +47,16 @@ async function loadTotalEarned(session: Session): Promise<number | null> {
     end: toKstLocalDateTime(new Date(parseDate(endAt).getTime() + 1000)),
   });
   return change.status === 'ok' ? change.data.increaseAmount : null;
+}
+
+/**
+ * my-result → 당첨 화면 상태.
+ * 수령 정보를 받는 방식(RECIPIENT_INFO)만 입력 폼을 띄우고, 이미 등록했으면(claimed) 제출 완료.
+ * REWARD_KEY 나 아직 모르는 방식은 폼 없이 별도 안내 (이 이벤트는 RECIPIENT_INFO 로 운영).
+ */
+function winnerStatus(result: PromotionResult): WinnerStatus {
+  if (result.rewardMethod !== 'RECIPIENT_INFO') return 'otherMethod';
+  return result.claimed ? 'claimed' : 'needsInfo';
 }
 
 async function currentPageUrl(): Promise<string> {
@@ -96,9 +104,15 @@ export default async function MyPointPage() {
     if (result.status !== 'ok') return <ErrorScreen />;
 
     if (result.data.isWinner) {
-      // 당첨 경품 코드가 내려오지 않으면 경품 이름 없이 '굿즈'로 표시한다.
-      const prize = PRIZES.find((item) => item.code === result.data.prizeCode) ?? null;
-      return <WinnerForm prize={prize} claimDeadline={POINT_EVENT_SCHEDULE.claimDeadline} />;
+      // my-result 에 당첨 경품이 없어, 응모한 경품이 하나뿐일 때만 그 경품(서버 값)을 보여준다.
+      const won = wonRaffle(raffleList);
+      return (
+        <WinnerForm
+          prize={won ? { name: won.title, imageUrl: won.image?.imageUrl ?? null } : null}
+          status={winnerStatus(result.data)}
+          claimDeadline={POINT_EVENT_SCHEDULE.claimDeadline}
+        />
+      );
     }
 
     return <LoserScreen raffles={raffleList ?? []} totalEarned={totalEarned} />;

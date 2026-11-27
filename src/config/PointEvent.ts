@@ -33,30 +33,5 @@ export const POINT_EVENT_SCHEDULE: {
   shippingFrom: null,
 };
 
-/**
- * 당첨 화면(my-result 의 prizeCode → 경품 이름·이미지)에만 쓰는 경품 정보.
- * 소개 페이지·내 포인트 페이지의 경품은 서버 응모 대상(GET /v1/raffles)을 쓴다.
- * 당첨 확인 API 가 나오면 서버 값으로 바꾸고 지울 것.
- */
-export type Prize = {
-  /** 당첨 결과(prizeCode)와 맞추는 경품 코드 */
-  code: string;
-  name: string;
-  image: string;
-};
-
-export const PRIZES: Prize[] = [
-  {
-    code: 'KEYRING',
-    name: '태그미 붕어빵 키링',
-    image: '/events/point/prize-keyring.jpg',
-  },
-  {
-    code: 'HOTPACK',
-    name: '붕어빵 핫팩',
-    image: '/events/point/prize-hotpack.jpg',
-  },
-];
-
 export const POINT_EVENT_PATH = '/events/point';
 export const POINT_EVENT_MY_PATH = '/events/point/my';
